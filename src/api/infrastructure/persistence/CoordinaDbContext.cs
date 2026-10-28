@@ -1,7 +1,6 @@
 using Coordina.Api.Modules.Auth.Infrastructure;
 using Coordina.Api.Modules.Projects.Infrastructure;
 using Coordina.Api.Modules.Boards.Infrastructure;
-using Coordina.Api.Modules.Tasks.Infrastructure;
 using Coordina.Api.Modules.Workspaces.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,7 +14,6 @@ public sealed class CoordinaDbContext(DbContextOptions<CoordinaDbContext> option
   public DbSet<WorkspaceMemberEntity> WorkspaceMembers => Set<WorkspaceMemberEntity>();
   public DbSet<WorkspaceInviteEntity> WorkspaceInvites => Set<WorkspaceInviteEntity>();
   public DbSet<ProjectEntity> Projects => Set<ProjectEntity>();
-  public DbSet<TaskEntity> Tasks => Set<TaskEntity>();
   public DbSet<BoardEntity> Boards => Set<BoardEntity>();
   public DbSet<BoardListEntity> BoardLists => Set<BoardListEntity>();
   public DbSet<BoardCardEntity> BoardCards => Set<BoardCardEntity>();

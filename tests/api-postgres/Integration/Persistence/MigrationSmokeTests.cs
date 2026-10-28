@@ -19,4 +19,15 @@ public sealed class MigrationSmokeTests(PostgresContainerFixture postgres)
     Assert.Empty(pending);
     Assert.Equal(dbContext.Database.GetMigrations().Last(), applied.Last());
   }
+
+  [Fact]
+  public async Task LegacyTasksTableIsGone()
+  {
+    await using var database = await postgres.CreateMigratedDatabaseAsync();
+
+    var table = await database.ScalarAsync<string>(
+      "SELECT to_regclass('public.tasks')::text");
+
+    Assert.Null(table);
+  }
 }

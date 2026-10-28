@@ -61,79 +61,7 @@ namespace Coordina.Api.Infrastructure.Persistence.Migrations
                     b.ToTable("auth_users", (string)null);
                 });
 
-            modelBuilder.Entity("Coordina.Api.Modules.Projects.Infrastructure.ProjectEntity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<DateTimeOffset?>("ArchivedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("archived_at");
-
-                    b.Property<string>("Color")
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)")
-                        .HasColumnName("color");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)")
-                        .HasColumnName("description");
-
-                    b.Property<string>("Icon")
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)")
-                        .HasColumnName("icon");
-
-                    b.Property<string>("Key")
-                        .HasMaxLength(12)
-                        .HasColumnType("character varying(12)")
-                        .HasColumnName("key");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("name");
-
-                    b.Property<Guid>("ProjectOwnerId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("project_owner_id");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)")
-                        .HasColumnName("status");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.Property<Guid>("WorkspaceId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("workspace_id");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProjectOwnerId");
-
-                    b.HasIndex("WorkspaceId");
-
-                    b.HasIndex("WorkspaceId", "Name");
-
-                    b.HasIndex("WorkspaceId", "Status");
-
-                    b.ToTable("projects", (string)null);
-                });
-
-            modelBuilder.Entity("Coordina.Api.Modules.Tasks.Infrastructure.BoardCardAssigneeEntity", b =>
+            modelBuilder.Entity("Coordina.Api.Modules.Boards.Infrastructure.BoardCardAssigneeEntity", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -162,7 +90,7 @@ namespace Coordina.Api.Infrastructure.Persistence.Migrations
                     b.ToTable("board_card_assignees", (string)null);
                 });
 
-            modelBuilder.Entity("Coordina.Api.Modules.Tasks.Infrastructure.BoardCardCommentEntity", b =>
+            modelBuilder.Entity("Coordina.Api.Modules.Boards.Infrastructure.BoardCardCommentEntity", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -198,7 +126,7 @@ namespace Coordina.Api.Infrastructure.Persistence.Migrations
                     b.ToTable("board_card_comments", (string)null);
                 });
 
-            modelBuilder.Entity("Coordina.Api.Modules.Tasks.Infrastructure.BoardCardDependencyEntity", b =>
+            modelBuilder.Entity("Coordina.Api.Modules.Boards.Infrastructure.BoardCardDependencyEntity", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -227,7 +155,7 @@ namespace Coordina.Api.Infrastructure.Persistence.Migrations
                     b.ToTable("board_card_dependencies", (string)null);
                 });
 
-            modelBuilder.Entity("Coordina.Api.Modules.Tasks.Infrastructure.BoardCardEntity", b =>
+            modelBuilder.Entity("Coordina.Api.Modules.Boards.Infrastructure.BoardCardEntity", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -314,7 +242,7 @@ namespace Coordina.Api.Infrastructure.Persistence.Migrations
                     b.ToTable("board_cards", (string)null);
                 });
 
-            modelBuilder.Entity("Coordina.Api.Modules.Tasks.Infrastructure.BoardCardSubtaskEntity", b =>
+            modelBuilder.Entity("Coordina.Api.Modules.Boards.Infrastructure.BoardCardSubtaskEntity", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -366,7 +294,7 @@ namespace Coordina.Api.Infrastructure.Persistence.Migrations
                     b.ToTable("board_card_subtasks", (string)null);
                 });
 
-            modelBuilder.Entity("Coordina.Api.Modules.Tasks.Infrastructure.BoardEntity", b =>
+            modelBuilder.Entity("Coordina.Api.Modules.Boards.Infrastructure.BoardEntity", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -410,7 +338,7 @@ namespace Coordina.Api.Infrastructure.Persistence.Migrations
                     b.ToTable("boards", (string)null);
                 });
 
-            modelBuilder.Entity("Coordina.Api.Modules.Tasks.Infrastructure.BoardListEntity", b =>
+            modelBuilder.Entity("Coordina.Api.Modules.Boards.Infrastructure.BoardListEntity", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -456,42 +384,56 @@ namespace Coordina.Api.Infrastructure.Persistence.Migrations
                     b.ToTable("board_lists", (string)null);
                 });
 
-            modelBuilder.Entity("Coordina.Api.Modules.Tasks.Infrastructure.TaskEntity", b =>
+            modelBuilder.Entity("Coordina.Api.Modules.Projects.Infrastructure.ProjectEntity", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<DateTimeOffset?>("ArchivedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("archived_at");
+
+                    b.Property<string>("Color")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("color");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
                     b.Property<string>("Description")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
                         .HasColumnName("description");
 
-                    b.Property<string>("Priority")
+                    b.Property<string>("Icon")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("icon");
+
+                    b.Property<string>("Key")
                         .HasMaxLength(12)
                         .HasColumnType("character varying(12)")
-                        .HasColumnName("priority");
+                        .HasColumnName("key");
 
-                    b.Property<Guid>("ProjectId")
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.Property<Guid>("ProjectOwnerId")
                         .HasColumnType("uuid")
-                        .HasColumnName("project_id");
+                        .HasColumnName("project_owner_id");
 
                     b.Property<string>("Status")
                         .IsRequired()
-                        .HasMaxLength(24)
-                        .HasColumnType("character varying(24)")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
                         .HasColumnName("status");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(160)
-                        .HasColumnType("character varying(160)")
-                        .HasColumnName("title");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -503,13 +445,15 @@ namespace Coordina.Api.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ProjectId");
+                    b.HasIndex("ProjectOwnerId");
 
-                    b.HasIndex("WorkspaceId", "ProjectId");
+                    b.HasIndex("WorkspaceId");
 
-                    b.HasIndex("WorkspaceId", "ProjectId", "Status");
+                    b.HasIndex("WorkspaceId", "Name");
 
-                    b.ToTable("tasks", (string)null);
+                    b.HasIndex("WorkspaceId", "Status");
+
+                    b.ToTable("projects", (string)null);
                 });
 
             modelBuilder.Entity("Coordina.Api.Modules.Workspaces.Infrastructure.WorkspaceEntity", b =>
@@ -616,20 +560,9 @@ namespace Coordina.Api.Infrastructure.Persistence.Migrations
                     b.ToTable("workspace_members", (string)null);
                 });
 
-            modelBuilder.Entity("Coordina.Api.Modules.Projects.Infrastructure.ProjectEntity", b =>
+            modelBuilder.Entity("Coordina.Api.Modules.Boards.Infrastructure.BoardCardAssigneeEntity", b =>
                 {
-                    b.HasOne("Coordina.Api.Modules.Workspaces.Infrastructure.WorkspaceEntity", "Workspace")
-                        .WithMany("Projects")
-                        .HasForeignKey("WorkspaceId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Workspace");
-                });
-
-            modelBuilder.Entity("Coordina.Api.Modules.Tasks.Infrastructure.BoardCardAssigneeEntity", b =>
-                {
-                    b.HasOne("Coordina.Api.Modules.Tasks.Infrastructure.BoardCardEntity", "Card")
+                    b.HasOne("Coordina.Api.Modules.Boards.Infrastructure.BoardCardEntity", "Card")
                         .WithMany("Assignees")
                         .HasForeignKey("CardId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -638,9 +571,9 @@ namespace Coordina.Api.Infrastructure.Persistence.Migrations
                     b.Navigation("Card");
                 });
 
-            modelBuilder.Entity("Coordina.Api.Modules.Tasks.Infrastructure.BoardCardCommentEntity", b =>
+            modelBuilder.Entity("Coordina.Api.Modules.Boards.Infrastructure.BoardCardCommentEntity", b =>
                 {
-                    b.HasOne("Coordina.Api.Modules.Tasks.Infrastructure.BoardCardEntity", "Card")
+                    b.HasOne("Coordina.Api.Modules.Boards.Infrastructure.BoardCardEntity", "Card")
                         .WithMany("Comments")
                         .HasForeignKey("CardId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -649,9 +582,9 @@ namespace Coordina.Api.Infrastructure.Persistence.Migrations
                     b.Navigation("Card");
                 });
 
-            modelBuilder.Entity("Coordina.Api.Modules.Tasks.Infrastructure.BoardCardDependencyEntity", b =>
+            modelBuilder.Entity("Coordina.Api.Modules.Boards.Infrastructure.BoardCardDependencyEntity", b =>
                 {
-                    b.HasOne("Coordina.Api.Modules.Tasks.Infrastructure.BoardCardEntity", "Card")
+                    b.HasOne("Coordina.Api.Modules.Boards.Infrastructure.BoardCardEntity", "Card")
                         .WithMany("Dependencies")
                         .HasForeignKey("CardId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -660,15 +593,15 @@ namespace Coordina.Api.Infrastructure.Persistence.Migrations
                     b.Navigation("Card");
                 });
 
-            modelBuilder.Entity("Coordina.Api.Modules.Tasks.Infrastructure.BoardCardEntity", b =>
+            modelBuilder.Entity("Coordina.Api.Modules.Boards.Infrastructure.BoardCardEntity", b =>
                 {
-                    b.HasOne("Coordina.Api.Modules.Tasks.Infrastructure.BoardEntity", "Board")
+                    b.HasOne("Coordina.Api.Modules.Boards.Infrastructure.BoardEntity", "Board")
                         .WithMany()
                         .HasForeignKey("BoardId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Coordina.Api.Modules.Tasks.Infrastructure.BoardListEntity", "List")
+                    b.HasOne("Coordina.Api.Modules.Boards.Infrastructure.BoardListEntity", "List")
                         .WithMany("Cards")
                         .HasForeignKey("ListId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -679,9 +612,9 @@ namespace Coordina.Api.Infrastructure.Persistence.Migrations
                     b.Navigation("List");
                 });
 
-            modelBuilder.Entity("Coordina.Api.Modules.Tasks.Infrastructure.BoardCardSubtaskEntity", b =>
+            modelBuilder.Entity("Coordina.Api.Modules.Boards.Infrastructure.BoardCardSubtaskEntity", b =>
                 {
-                    b.HasOne("Coordina.Api.Modules.Tasks.Infrastructure.BoardCardEntity", "Card")
+                    b.HasOne("Coordina.Api.Modules.Boards.Infrastructure.BoardCardEntity", "Card")
                         .WithMany("Subtasks")
                         .HasForeignKey("CardId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -690,7 +623,7 @@ namespace Coordina.Api.Infrastructure.Persistence.Migrations
                     b.Navigation("Card");
                 });
 
-            modelBuilder.Entity("Coordina.Api.Modules.Tasks.Infrastructure.BoardEntity", b =>
+            modelBuilder.Entity("Coordina.Api.Modules.Boards.Infrastructure.BoardEntity", b =>
                 {
                     b.HasOne("Coordina.Api.Modules.Projects.Infrastructure.ProjectEntity", "Project")
                         .WithMany()
@@ -701,9 +634,9 @@ namespace Coordina.Api.Infrastructure.Persistence.Migrations
                     b.Navigation("Project");
                 });
 
-            modelBuilder.Entity("Coordina.Api.Modules.Tasks.Infrastructure.BoardListEntity", b =>
+            modelBuilder.Entity("Coordina.Api.Modules.Boards.Infrastructure.BoardListEntity", b =>
                 {
-                    b.HasOne("Coordina.Api.Modules.Tasks.Infrastructure.BoardEntity", "Board")
+                    b.HasOne("Coordina.Api.Modules.Boards.Infrastructure.BoardEntity", "Board")
                         .WithMany("Lists")
                         .HasForeignKey("BoardId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -712,15 +645,15 @@ namespace Coordina.Api.Infrastructure.Persistence.Migrations
                     b.Navigation("Board");
                 });
 
-            modelBuilder.Entity("Coordina.Api.Modules.Tasks.Infrastructure.TaskEntity", b =>
+            modelBuilder.Entity("Coordina.Api.Modules.Projects.Infrastructure.ProjectEntity", b =>
                 {
-                    b.HasOne("Coordina.Api.Modules.Projects.Infrastructure.ProjectEntity", "Project")
-                        .WithMany()
-                        .HasForeignKey("ProjectId")
+                    b.HasOne("Coordina.Api.Modules.Workspaces.Infrastructure.WorkspaceEntity", "Workspace")
+                        .WithMany("Projects")
+                        .HasForeignKey("WorkspaceId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Project");
+                    b.Navigation("Workspace");
                 });
 
             modelBuilder.Entity("Coordina.Api.Modules.Workspaces.Infrastructure.WorkspaceInviteEntity", b =>
@@ -745,7 +678,7 @@ namespace Coordina.Api.Infrastructure.Persistence.Migrations
                     b.Navigation("Workspace");
                 });
 
-            modelBuilder.Entity("Coordina.Api.Modules.Tasks.Infrastructure.BoardCardEntity", b =>
+            modelBuilder.Entity("Coordina.Api.Modules.Boards.Infrastructure.BoardCardEntity", b =>
                 {
                     b.Navigation("Assignees");
 
@@ -756,12 +689,12 @@ namespace Coordina.Api.Infrastructure.Persistence.Migrations
                     b.Navigation("Subtasks");
                 });
 
-            modelBuilder.Entity("Coordina.Api.Modules.Tasks.Infrastructure.BoardEntity", b =>
+            modelBuilder.Entity("Coordina.Api.Modules.Boards.Infrastructure.BoardEntity", b =>
                 {
                     b.Navigation("Lists");
                 });
 
-            modelBuilder.Entity("Coordina.Api.Modules.Tasks.Infrastructure.BoardListEntity", b =>
+            modelBuilder.Entity("Coordina.Api.Modules.Boards.Infrastructure.BoardListEntity", b =>
                 {
                     b.Navigation("Cards");
                 });
