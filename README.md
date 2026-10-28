@@ -99,7 +99,7 @@ Current modules:
 | `auth` | Account registration, login, password hashing, JWT issuing |
 | `workspaces` | Workspace lifecycle, invitations, membership, authorization rules |
 | `projects` | Workspace-owned projects with tenant-scoped reads and owner-only deletion |
-| `tasks` | Project board system with templates, lists, cards, assignees, and workspace/project access checks |
+| `boards` | Project boards: templates, lists with an explicit workflow status, cards, assignees, collaboration, and dependencies. Board cards are the single source of truth for project work |
 | `health` | Runtime health endpoint |
 
 The task dependency graph is backed by a native C++ graph engine in
@@ -141,7 +141,9 @@ src/web/src
 │   ├── api                  # ASP.NET Core API
 │   └── web                  # React application
 ├── tests
-│   └── api                  # API unit and integration tests
+│   ├── api                  # Fast API tests (in-memory stores)
+│   ├── api-postgres         # API tests against a real PostgreSQL 16 (Testcontainers, Docker required)
+│   └── graph-engine         # Native C++ graph engine tests
 ├── docker                   # PostgreSQL and Adminer compose services
 ├── .github/workflows        # CI quality workflow
 ├── Makefile                 # Local workflow entrypoint
@@ -233,7 +235,9 @@ The Makefile is the main local interface.
 | `make dev` | Run API watcher and web dev server together |
 | `make api` | Apply migrations and run the API |
 | `make web` | Run the Vite dev server |
-| `make api-test` | Run .NET tests |
+| `make api-test` | Run all .NET tests (fast + PostgreSQL) |
+| `make api-test-fast` | Run .NET tests against in-memory stores |
+| `make api-test-postgres` | Run .NET tests against a disposable PostgreSQL container (Docker required) |
 | `make web-test` | Run Vitest tests |
 | `make web-e2e` | Run Playwright tests |
 | `make lint` | Run format verification, lint, and typecheck |
@@ -257,7 +261,7 @@ The gate verifies:
 | Web formatting | Prettier |
 | Web lint | ESLint |
 | Web type safety | TypeScript |
-| API tests | xUnit |
+| API tests | xUnit (in-memory and real PostgreSQL via Testcontainers) |
 | Web tests | Vitest |
 | End-to-end flow | Playwright Chromium |
 | API build | `dotnet build` |
@@ -353,7 +357,8 @@ Manual testing:
 Run backend tests:
 
 ```bash
-dotnet test tests/api/Coordina.Api.Tests.csproj
+make api-test-fast      # in-memory stores, no Docker needed
+make api-test-postgres  # real PostgreSQL 16 in a disposable container
 ```
 
 ## Project Shell And Board System
@@ -396,14 +401,32 @@ PATCH  /workspaces/{workspaceId}/projects/{projectId}/boards/{boardId}/cards/{ca
 DELETE /workspaces/{workspaceId}/projects/{projectId}/boards/{boardId}/cards/{cardId}
 ```
 
+Every list carries an explicit workflow status, `taskStatus`, set when the list
+is created and never derived from its title: `TODO`, `IN_PROGRESS`, or `DONE`.
+These are the same status categories Jira uses. Renaming a list never changes its
+meaning, metrics, or WIP limits.
+
 Board templates:
 
-| Template | Generated lists |
+| Template | Generated lists (status) |
 | --- | --- |
-| `BASIC` | To Do, In Progress, Done |
-| `AGILE_SCRUM` | Backlog, Sprint, In Progress, Review, Done |
-| `BUG_TRACKING` | Reported, Investigating, Fixed, Released |
-| `PRODUCT_ROADMAP` | Ideas, Planned, In Progress, Shipped |
+| `BASIC` | To Do (`TODO`), In Progress (`IN_PROGRESS`), Done (`DONE`) |
+| `AGILE_SCRUM` | Backlog (`TODO`), Sprint (`TODO`), In Progress (`IN_PROGRESS`), Review (`IN_PROGRESS`), Done (`DONE`) |
+| `BUG_TRACKING` | Reported (`TODO`), Investigating (`IN_PROGRESS`), Fixed (`IN_PROGRESS`), Released (`DONE`) |
+| `PRODUCT_ROADMAP` | Ideas (`TODO`), Planned (`TODO`), In Progress (`IN_PROGRESS`), Shipped (`DONE`) |
+| `CUSTOM` | First list `TODO`, last list `DONE` (when there are at least two), the rest `IN_PROGRESS` |
+
+`POST .../lists` accepts an optional `taskStatus` (default `TODO`).
+
+Card completion follows the list status:
+
+| Action | Result |
+| --- | --- |
+| Create or move a card into a `DONE` list | The card is completed |
+| Move a card out of a `DONE` list | The card is reopened |
+| `PATCH` a card with `isCompleted: true` | The card moves to the board's first `DONE` list |
+| `PATCH` a card with `isCompleted: false` | The card moves to the board's first `TODO` list |
+| No list with the target status | `409 Conflict`, card unchanged |
 
 Card fields:
 
@@ -416,6 +439,7 @@ Card fields:
 | `priority` | Optional `LOW`, `MEDIUM`, or `HIGH` |
 | `dueDate` | Optional date shown compactly on cards |
 | `labels` | Small colored tags for scanning |
+| `isCompleted` / `completedAt` / `completedBy` | Kept consistent with the list's `taskStatus` |
 | `assignees` | Multiple workspace members |
 | `createdAt` / `updatedAt` | Server-managed audit timestamps |
 
@@ -462,7 +486,7 @@ The next meaningful layers are product layers, not more scaffolding:
 
 | Track | Intent |
 | --- | --- |
-| Tasks or boards | Core collaboration workflow |
+| Boards | Core collaboration workflow: frontend decomposition, then context-aware planning |
 | Realtime updates | Shared workspace presence and live state |
 | Audit trail | Owner visibility into membership and sensitive actions |
 | Production hardening | Rate limiting, refresh tokens, secret management, deploy docs |

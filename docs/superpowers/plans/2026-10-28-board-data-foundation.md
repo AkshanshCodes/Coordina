@@ -37,28 +37,28 @@
 - Modify: `Coordina.sln`
 - Modify: `Makefile`
 
-- [ ] **Step 1: Create the project and a failing smoke test**
+- [x] **Step 1: Create the project and a failing smoke test**
 
   Mirror package versions from `tests/api/Coordina.Api.Tests.csproj`, add the current stable `Testcontainers.PostgreSql`, and reference `src/api/Coordina.Api.csproj`. `MigrationSmokeTests.AllMigrationsApplyToEmptyDatabase` creates a fresh database, calls `Database.MigrateAsync()`, and asserts `GetPendingMigrationsAsync()` is empty and `GetAppliedMigrationsAsync()` ends with the latest migration id.
 
-- [ ] **Step 2: Implement fixtures**
+- [x] **Step 2: Implement fixtures**
 
   `PostgresContainerFixture` (xUnit collection fixture) starts one `postgres:16` container. If startup fails, rethrow with a message starting `PostgreSQL integration tests require Docker:`. `CreateDatabaseAsync()` creates `coordina_test_<guid:N>` through the admin connection and returns a `PostgresDatabase` exposing `ConnectionString`, `CreateDbContext()`, and `MigrateAsync()`. On dispose, it calls `NpgsqlConnection.ClearAllPools()` and drops the database `WITH (FORCE)`.
 
-- [ ] **Step 3: Implement the real-store web factory**
+- [x] **Step 3: Implement the real-store web factory**
 
   `PostgresApiFactory : WebApplicationFactory<Program>` takes a `PostgresDatabase`, uses environment `Testing` (which skips `AddPostgres` in `Program.cs`), and registers `AddDbContext<CoordinaDbContext>(o => o.UseNpgsql(connectionString))`. Do not call any `AddInMemory*StoreForTests`. Add a helper that registers a user and returns an authenticated `HttpClient`, reusing the existing auth endpoints.
 
-- [ ] **Step 4: Solution and Make targets**
+- [x] **Step 4: Solution and Make targets**
 
   Add the project to `Coordina.sln`. Add `api-test-fast` (`dotnet test tests/api/...`) and `api-test-postgres` (`dotnet test tests/api-postgres/...`). Leave `api-test` running the whole solution, so it covers both suites. Add both new targets to `help`.
 
-- [ ] **Step 5: Run**
+- [x] **Step 5: Run**
 
   Run: `make api-test-postgres`
   Expected: PASS, one test, container started and removed.
 
-- [ ] **Step 6: Commit** — `test: add PostgreSQL integration harness`
+- [x] **Step 6: Commit** — `test: add PostgreSQL integration harness`
 
 ### Task 2: Atomic Invite Consumption
 
@@ -69,26 +69,26 @@
 - Modify: `src/api/modules/workspaces/Infrastructure/InMemoryWorkspaceStore.cs`
 - Create: `tests/api-postgres/Integration/Workspaces/WorkspaceInvitePostgresTests.cs`
 
-- [ ] **Step 1: Write failing PostgreSQL tests**
+- [x] **Step 1: Write failing PostgreSQL tests**
 
   - `ConcurrentJoin_ConsumesInviteExactlyOnce`: two users join with the same code via `Task.WhenAll`. Expect one 2xx, one 404/409, zero 500, one new membership row, `consumed_at` set.
   - `MembershipInsertFailure_DoesNotConsumeInvite`: insert the membership row directly through `CreateDbContext()` after the service's membership pre-check (or call the store directly) so the insert hits the unique constraint. Expect `consumed_at IS NULL`.
 
-- [ ] **Step 2: Confirm RED**
+- [x] **Step 2: Confirm RED**
 
   Run: `dotnet test tests/api-postgres/Coordina.Api.Postgres.Tests.csproj --filter FullyQualifiedName~WorkspaceInvitePostgresTests -m:1`
   Expected: rollback test fails (invite consumed); race test returns a 500.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
   Add `ConsumeInviteStatus { Consumed, Unavailable, AlreadyMember }` and `ConsumeInviteOutcome(ConsumeInviteStatus Status, Workspace? Workspace)`. In `PostgresWorkspaceStore`, wrap the conditional `ExecuteUpdateAsync`, the member `Add`, and `SaveChangesAsync` in `Database.BeginTransactionAsync`. If 0 rows are updated, roll back and return `Unavailable`. On `DbUpdateException` with `PostgresException { SqlState: "23505" }`, roll back, `ChangeTracker.Clear()`, and return `AlreadyMember`. Remove the `InvalidOperationException` throws. Mirror the outcomes in `InMemoryWorkspaceStore` under its existing lock. In `WorkspaceService.JoinAsync`, map `Unavailable` → the existing "no longer usable" result and `AlreadyMember` → the existing "already belong" conflict.
 
-- [ ] **Step 4: Run**
+- [x] **Step 4: Run**
 
   Run: `make api-test`
   Expected: PASS, no 500 in the race test.
 
-- [ ] **Step 5: Commit** — `fix: consume workspace invites atomically`
+- [x] **Step 5: Commit** — `fix: consume workspace invites atomically`
 
 ### Task 3: Remove the Tasks Module
 
@@ -102,25 +102,25 @@
 - Modify (generated): `CoordinaDbContextModelSnapshot.cs`
 - Modify: `tests/api-postgres/Integration/Persistence/MigrationSmokeTests.cs`
 
-- [ ] **Step 1: Add a failing schema assertion**
+- [x] **Step 1: Add a failing schema assertion**
 
   In `MigrationSmokeTests`, assert `SELECT to_regclass('public.tasks')` is null after migrating. Run `make api-test-postgres` → FAIL.
 
-- [ ] **Step 2: Delete code and wiring**
+- [x] **Step 2: Delete code and wiring**
 
   Remove the folders, the `using`/`AddTasksModule()`/`MapTasksEndpoints()` lines in `Program.cs`, the `Tasks` DbSet and its `using` in `CoordinaDbContext`, and `AddInMemoryTaskStoreForTests()` in the test factory. `dotnet build Coordina.sln` must succeed.
 
-- [ ] **Step 3: Generate the migration**
+- [x] **Step 3: Generate the migration**
 
   Run: `make api-migration name=RemoveLegacyTasks`
   Check that `Up` only drops `tasks` and `Down` recreates it.
 
-- [ ] **Step 4: Run**
+- [x] **Step 4: Run**
 
   Run: `make api-test && grep -rn "Modules.Tasks\|TaskEntity\|/tasks\"" src tests`
   Expected: tests PASS; grep returns nothing.
 
-- [ ] **Step 5: Commit** — `refactor: remove unused Tasks module`
+- [x] **Step 5: Commit** — `refactor: remove unused Tasks module`
 
 ### Task 4: Explicit List Status
 
@@ -142,19 +142,19 @@
 - Test: `tests/api/Integration/Boards/BoardEndpointsTests.cs`
 - Create: `tests/api-postgres/Integration/Boards/BoardWorkflowPostgresTests.cs`
 
-- [ ] **Step 1: Write failing fast tests**
+- [x] **Step 1: Write failing fast tests**
 
   `TemplateBoards_ExposeDeclaredStatuses` (Basic: TODO/IN_PROGRESS/DONE; BugTracking: TODO/IN_PROGRESS/IN_PROGRESS/DONE; AgileScrum: TODO/TODO/IN_PROGRESS/IN_PROGRESS/DONE), `CustomBoard_AssignsStatusesByPosition` (1, 2, and 4 lists), `CreateList_DefaultsToTodo`, `CreateList_AcceptsInProgress`, `CreateList_RejectsUnknownStatus`, `RenameList_DoesNotChangeTaskStatus`. Assert the exact string `IN_PROGRESS`.
 
-- [ ] **Step 2: Confirm RED**
+- [x] **Step 2: Confirm RED**
 
   Run: `dotnet test tests/api/Coordina.Api.Tests.csproj --filter FullyQualifiedName~BoardEndpointsTests -m:1`
 
-- [ ] **Step 3: Implement domain, rules, and contracts**
+- [x] **Step 3: Implement domain, rules, and contracts**
 
   Declare the status on each `BoardListTemplate` entry. In `BuildListSeeds`, apply the custom position rule. Parse the optional request status with `BoardTaskStatusCodec.TryParse` (case-insensitive) and add a `TaskStatus` validation error on failure. Map through both stores and the response mapper.
 
-- [ ] **Step 4: Configure the column and generate the migration**
+- [x] **Step 4: Configure the column and generate the migration**
 
   Map `task_status` as `varchar(16)`, required, with a value converter that uses the codec, and a check constraint `ck_board_lists_task_status` on `('TODO','IN_PROGRESS','DONE')`. Run `make api-migration name=AddBoardListTaskStatus`. Then hand-edit `Up`: add the column as nullable, backfill, align cards, set it `NOT NULL`, and add the constraint:
 
@@ -184,16 +184,16 @@
   WHERE c.list_id = l.id AND l.task_status <> 'DONE' AND c.is_completed;
   ```
 
-- [ ] **Step 5: Write the PostgreSQL migration test**
+- [x] **Step 5: Write the PostgreSQL migration test**
 
   In `BoardWorkflowPostgresTests.Backfill_AssignsStatusesByPosition`: migrate to `RemoveLegacyTasks`, insert one board with 1 list and one with 3 lists at positions 0/5/9, plus a completed card in the middle list and an open card in the last list. Migrate to latest, then assert statuses and card completion. Also add `ListStatus_RoundTripsThroughApi` against the real store.
 
-- [ ] **Step 6: Run**
+- [x] **Step 6: Run**
 
   Run: `make api-test`
   Expected: PASS.
 
-- [ ] **Step 7: Commit** — `feat: make board list workflow status explicit`
+- [x] **Step 7: Commit** — `feat: make board list workflow status explicit`
 
 ### Task 5: Completion Follows List Status
 
@@ -206,30 +206,30 @@
 - Test: `tests/api/Integration/Boards/BoardEndpointsTests.cs`
 - Modify: `tests/api-postgres/Integration/Boards/BoardWorkflowPostgresTests.cs`
 
-- [ ] **Step 1: Write failing fast tests**
+- [x] **Step 1: Write failing fast tests**
 
   `CreateCard_InDoneList_IsCompleted`, `MoveCard_IntoDoneList_Completes`, `MoveCard_OutOfDoneList_Reopens`, `CompleteCard_MovesToFirstDoneList`, `ReopenCard_MovesToFirstTodoList`, `CompleteCard_WithoutDoneList_Returns409AndPreservesCard` (single-list custom board), `UpdateCard_WithoutCompletionChange_StaysInList`.
 
-- [ ] **Step 2: Confirm RED**
+- [x] **Step 2: Confirm RED**
 
   Run: `dotnet test tests/api/Coordina.Api.Tests.csproj --filter FullyQualifiedName~BoardEndpointsTests -m:1`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
   - **Create:** the store sets completion from the destination list's status (`completedBy` is the creator). `CreateCardAsync` in the service passes the user id.
   - **Move:** both stores set or clear `IsCompleted`, `CompletedAt`, and `CompletedByUserId` from the target list's status, in the same save or critical section as the list change. `MoveCardAsync` needs the acting user id for `completedBy`; add it to the store signature.
   - **Update:** when `request.IsCompleted` differs from the current value, load the board, resolve `BoardWorkflow.FindFirstList` for `DONE`/`TODO`, and return `BoardResultStatus.Conflict` with the message `This board has no "Done" list. Add one to complete cards.` (or the `TODO` equivalent) if none exists. Otherwise pass the target list id to `UpdateCardAsync`, which appends the card to that list and applies the fields in one save.
 
-- [ ] **Step 4: Add PostgreSQL coverage**
+- [x] **Step 4: Add PostgreSQL coverage**
 
   `Completion_InvariantHoldsThroughRealStore` (create in Done, move out, complete, reopen) and `Complete_WithoutDoneList_LeavesRowUnchanged` (compare the row before and after the call).
 
-- [ ] **Step 5: Run**
+- [x] **Step 5: Run**
 
   Run: `make api-test`
   Expected: PASS.
 
-- [ ] **Step 6: Commit** — `feat: keep card completion consistent with list status`
+- [x] **Step 6: Commit** — `feat: keep card completion consistent with list status`
 
 ### Task 6: Web App Reads Explicit Status
 
@@ -240,20 +240,20 @@
 - Create or modify: `src/web/src/features/tasks/board-utils.test.ts`
 - Modify: any test fixtures that build `BoardList` objects
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
   Metrics count completed cards from `card.isCompleted`. A list titled `Done` with status `TODO` contributes nothing to `completed`. Renaming any list leaves the metrics unchanged. Active-work/WIP selection uses `taskStatus === "IN_PROGRESS"`.
 
-- [ ] **Step 2: Implement**
+- [x] **Step 2: Implement**
 
   Replace `isDoneListTitle` and `isActiveWorkListTitle` with status checks, then delete both functions. In `project-board.tsx:247`, set `wipLimit` from `list.taskStatus === "IN_PROGRESS"`. Make sure a 409 from a completion toggle shows the API message through the existing error notice. Check that `use-card-panel-form.ts` resyncs from the returned card instead of keeping its optimistic `isCompleted`.
 
-- [ ] **Step 3: Run**
+- [x] **Step 3: Run**
 
   Run: `pnpm --dir src/web test && pnpm --dir src/web typecheck && pnpm --dir src/web lint && grep -rn "ListTitle(" src/web/src`
   Expected: PASS; grep returns nothing.
 
-- [ ] **Step 4: Commit** — `feat(web): use explicit list status for board metrics`
+- [x] **Step 4: Commit** — `feat(web): use explicit list status for board metrics`
 
 ### Task 7: Documentation and Full Verification
 
@@ -263,7 +263,7 @@
 - Modify: `docs/testing.mdx` (fast vs PostgreSQL suites, Docker requirement, Make targets)
 - Modify: `docs/api-reference.mdx` (`taskStatus` on lists, optional on create, completion/move semantics, 409)
 
-- [ ] **Step 1: Update docs**
+- [x] **Step 1: Update docs**
 
 - [ ] **Step 2: Full gate**
 
@@ -274,4 +274,4 @@
 
   Check each of the 6 spec acceptance criteria against test names and command output. Run `git status --short` and `git diff --check`.
 
-- [ ] **Step 4: Commit** — `docs: document explicit board workflow and PostgreSQL tests`
+- [x] **Step 4: Commit** — `docs: document explicit board workflow and PostgreSQL tests`

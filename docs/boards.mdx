@@ -1,0 +1,82 @@
+---
+title: "Boards"
+description: "Board workflow statuses, card completion rules, and API routes."
+---
+
+A project's work lives in its board. A board has lists, and a list holds cards.
+Cards are the only representation of project work: there is no separate task
+store.
+
+## Workflow status
+
+Every list has an explicit `taskStatus`, borrowed from Jira's status categories:
+
+| Status | Meaning |
+| --- | --- |
+| `TODO` | Not started |
+| `IN_PROGRESS` | Being worked on. WIP limits apply here |
+| `DONE` | Delivered |
+
+The status is set when the list is created and is never inferred from the title.
+Renaming "Done" to "Shipped" changes nothing about the cards in it.
+
+| How the list is created | Status |
+| --- | --- |
+| `BASIC` template | To Do `TODO`, In Progress `IN_PROGRESS`, Done `DONE` |
+| `AGILE_SCRUM` template | Backlog `TODO`, Sprint `TODO`, In Progress `IN_PROGRESS`, Review `IN_PROGRESS`, Done `DONE` |
+| `BUG_TRACKING` template | Reported `TODO`, Investigating `IN_PROGRESS`, Fixed `IN_PROGRESS`, Released `DONE` |
+| `PRODUCT_ROADMAP` template | Ideas `TODO`, Planned `TODO`, In Progress `IN_PROGRESS`, Shipped `DONE` |
+| `CUSTOM` board | First list `TODO`, last list `DONE` (when there are at least two), others `IN_PROGRESS` |
+| `POST .../lists` | `taskStatus` from the request, default `TODO` |
+
+## Card completion
+
+A card is completed exactly when it sits in a `DONE` list.
+
+| Action | Result |
+| --- | --- |
+| Create a card in a `DONE` list | Created completed |
+| Move a card into a `DONE` list | Completed, `completedAt` and `completedBy` set |
+| Move a card out of a `DONE` list | Reopened, completion fields cleared |
+| `PATCH` with `isCompleted: true` | Moved to the first `DONE` list |
+| `PATCH` with `isCompleted: false` | Moved to the first `TODO` list |
+| No list with the target status | `409 Conflict`; the card is not changed |
+
+## API surface
+
+```http
+GET    /workspaces/{workspaceId}/projects/{projectId}/board
+POST   /workspaces/{workspaceId}/projects/{projectId}/boards
+       { "name": "Delivery", "template": "CUSTOM", "customListTitles": ["Inbox", "Build", "Live"] }
+POST   /workspaces/{workspaceId}/projects/{projectId}/boards/{boardId}/lists
+       { "title": "Review", "taskStatus": "IN_PROGRESS" }
+PATCH  /workspaces/{workspaceId}/projects/{projectId}/boards/{boardId}/lists/{listId}
+       { "title": "Code review" }
+POST   /workspaces/{workspaceId}/projects/{projectId}/boards/{boardId}/lists/{listId}/cards
+PATCH  /workspaces/{workspaceId}/projects/{projectId}/boards/{boardId}/cards/{cardId}
+       { "isCompleted": true }
+PATCH  /workspaces/{workspaceId}/projects/{projectId}/boards/{boardId}/cards/{cardId}/move
+       { "listId": "..." }
+DELETE /workspaces/{workspaceId}/projects/{projectId}/boards/{boardId}/cards/{cardId}
+GET    /workspaces/{workspaceId}/projects/{projectId}/boards/{boardId}/graph
+```
+
+Each list in a board response includes `taskStatus`:
+
+```json
+{
+  "id": "4f0c…",
+  "title": "In Progress",
+  "position": 1,
+  "taskStatus": "IN_PROGRESS",
+  "cards": []
+}
+```
+
+## Rules
+
+- Every route validates workspace membership and that the project belongs to the
+  workspace. Foreign or mismatched ids receive `404`.
+- Completed projects are read-only for board mutations (`409`).
+- Assignees must be workspace members.
+- Deleting a card requires a workspace owner or project owner.

@@ -16,8 +16,7 @@ src/
       auth/        Accounts, JWT issuance, password hashing
       workspaces/  Tenancy, membership, invites
       projects/    Project lifecycle + shared project access guard
-      tasks/       Flat project tasks (legacy surface)
-      boards/      Kanban boards, cards, collaboration, dependencies
+      boards/      Boards, lists with workflow status, cards (single source of project work)
       health/      Liveness endpoints
     infrastructure/ Cross-cutting persistence and configuration
   graph-engine/   C++20 native library (critical path, planning, suggestions)
@@ -44,7 +43,7 @@ via an `Add<Name>Module` extension in `Program.cs`.
 
 **Authorization is centralized.** `IProjectAccessGuard` (projects module) is the
 single implementation of "can this user read/write this project in this
-workspace". Task and board services consume it instead of re-implementing role
+workspace". Board services consume it instead of re-implementing role
 checks. New project-scoped features must go through the guard.
 
 **Services are scoped by capability, not by module size.** The boards module
@@ -54,8 +53,16 @@ When a service grows past a single clear responsibility, split it.
 
 **Stores isolate persistence.** Each aggregate has an interface
 (`IBoardStore`, `IProjectStore`, …) with a Postgres implementation for runtime
-and an in-memory implementation for integration tests. Handlers and services
-never touch `CoordinaDbContext` directly.
+and an in-memory implementation for fast integration tests. The
+`tests/api-postgres` suite runs the same endpoints against the Postgres stores
+and real migrations. Handlers and services never touch `CoordinaDbContext`
+directly.
+
+**Workflow state is explicit.** A board list has a `taskStatus` (`TODO`,
+`IN_PROGRESS`, `DONE`) that is stored, never inferred from its title. Card
+completion is derived from it: `isCompleted` is true exactly when the card sits in
+a `DONE` list. `BoardWorkflow` resolves target lists, and both stores apply list
+and completion changes in one write.
 
 ## Frontend rules
 

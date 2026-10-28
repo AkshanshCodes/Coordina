@@ -7,11 +7,32 @@ Run the focused checks while developing:
 
 ```bash
 make graph-engine-test
-make api-test
+make api-test-fast
+make api-test-postgres
 make web-test
 make web-typecheck
 make web-lint
 ```
+
+## API test suites
+
+| Suite | Command | What it exercises |
+| --- | --- | --- |
+| Fast | `make api-test-fast` | Endpoints and services over in-memory stores. Runs in about a second, no Docker needed. |
+| PostgreSQL | `make api-test-postgres` | The same endpoints over the Postgres stores, with real EF Core migrations, constraints, and transactions. |
+
+`make api-test` runs both.
+
+The PostgreSQL suite needs Docker. It starts one `postgres:16` container per run
+with Testcontainers, migrates a template database once, and gives each test its
+own database cloned from that template. Each database is dropped after its test.
+If Docker is unavailable, tests fail with a message starting
+`PostgreSQL integration tests require Docker:`.
+
+Put a test in the PostgreSQL suite when the in-memory stores cannot catch the
+bug: migrations and data backfills, transactions and race conditions, unique or
+check constraints, and tenant scoping in SQL queries. Test classes derive from
+`PostgresApiTest`, which provides `Api`, `Database`, and `Factory`.
 
 Run the full quality gate before merging:
 
@@ -31,3 +52,5 @@ make quality
 8. Generate an invitation code, sign in as another user, and redeem it once.
 9. Confirm only workspace owners or project owners can edit and archive.
 10. Confirm a non-member receives `404` for workspace and project details.
+11. Open a board, move a card into the last list, and confirm it shows as completed.
+12. Rename that list and confirm the board metrics do not change.
