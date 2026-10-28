@@ -6,11 +6,10 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends g++ \
   && rm -rf /var/lib/apt/lists/*
 
-COPY Coordina.sln Directory.Build.props Directory.Build.targets ./
+COPY Directory.Build.props Directory.Build.targets ./
 COPY src/api/Coordina.Api.csproj src/api/
-COPY tests/api/Coordina.Api.Tests.csproj tests/api/
 
-RUN dotnet restore Coordina.sln -m:1
+RUN dotnet restore src/api/Coordina.Api.csproj -m:1
 
 COPY . .
 
