@@ -1,12 +1,19 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 
+import { useDismissibleLayer } from "@/features/board/hooks/use-dismissible-layer"
 import {
-  normalizeLabel,
-  normalizeLabels,
-  sameLabels,
-  sameStrings,
-} from "@/features/board/model/labels"
-import { todayDateKey } from "@/features/board/model/dates"
+  addDraftLabel,
+  canCreateDraftLabel,
+  type CardDraft,
+  draftFromCard,
+  hasDraftChanges,
+  submittedDraftLabels,
+  suggestDraftLabels,
+  toCardInput,
+  toggleDraftLabel,
+  validateDraft,
+} from "@/features/board/model/card-draft"
+import { normalizeLabel } from "@/features/board/model/labels"
 import type { BoardCard, BoardCardInput, BoardCardPriority } from "@/types/task"
 
 type UseCardPanelFormOptions = {
@@ -40,81 +47,59 @@ export function useCardPanelForm({
   const [subtaskInput, setSubtaskInput] = useState("")
   const [dependencyId, setDependencyId] = useState("")
   const [error, setError] = useState<string | null>(null)
-  const [isCalendarOpen, setIsCalendarOpen] = useState(false)
-  const [isLabelMenuOpen, setIsLabelMenuOpen] = useState(false)
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">(
     "idle"
   )
-  const calendarContainerRef = useRef<HTMLDivElement>(null)
-  const labelMenuContainerRef = useRef<HTMLDivElement>(null)
+  const calendar = useDismissibleLayer()
+  const labelMenu = useDismissibleLayer()
+  const setIsCalendarOpen = calendar.setIsOpen
+  const setIsLabelMenuOpen = labelMenu.setIsOpen
 
-  const hasChanges = useMemo(() => {
-    if (!card) {
-      return false
-    }
-
-    const nextLabels = normalizeLabels([...labels, labelInput])
-    const currentLabels = normalizeLabels(card.labels)
-
-    return (
-      title.trim() !== card.title ||
-      description.trim() !== (card.description ?? "") ||
-      priority !== (card.priority ?? "") ||
-      dueDate !== (card.dueDate ?? "") ||
-      isCompleted !== card.isCompleted ||
-      !sameLabels(nextLabels, currentLabels) ||
-      !sameStrings(
-        [...assigneeIds].sort(),
-        card.assignees.map((assignee) => assignee.userId).sort()
-      )
-    )
-  }, [
-    assigneeIds,
-    card,
-    description,
-    dueDate,
-    isCompleted,
-    labelInput,
-    labels,
-    priority,
-    title,
-  ])
-
-  const labelSuggestions = useMemo(() => {
-    const query = normalizeLabel(labelInput)?.toLowerCase() ?? ""
-
-    return availableLabels
-      .filter(
-        (label) =>
-          !labels.some(
-            (selectedLabel) =>
-              selectedLabel.toLowerCase() === label.toLowerCase()
-          )
-      )
-      .filter((label) => !query || label.toLowerCase().includes(query))
-      .slice(0, 10)
-  }, [availableLabels, labelInput, labels])
+  const draft = useMemo<CardDraft>(
+    () => ({
+      title,
+      description,
+      priority,
+      dueDate,
+      labels,
+      labelInput,
+      assigneeIds,
+      isCompleted,
+    }),
+    [
+      assigneeIds,
+      description,
+      dueDate,
+      isCompleted,
+      labelInput,
+      labels,
+      priority,
+      title,
+    ]
+  )
+  const hasChanges = useMemo(() => hasDraftChanges(draft, card), [card, draft])
+  const labelSuggestions = useMemo(
+    () => suggestDraftLabels(availableLabels, labels, labelInput),
+    [availableLabels, labelInput, labels]
+  )
   const normalizedLabelInput = normalizeLabel(labelInput)
-  const canCreateLabel = Boolean(
-    normalizedLabelInput &&
-    !availableLabels.some(
-      (label) => label.toLowerCase() === normalizedLabelInput.toLowerCase()
-    ) &&
-    !labels.some(
-      (label) => label.toLowerCase() === normalizedLabelInput.toLowerCase()
-    )
+  const canCreateLabel = canCreateDraftLabel(
+    availableLabels,
+    labels,
+    labelInput
   )
 
   useEffect(() => {
     queueMicrotask(() => {
-      setTitle(card?.title ?? "")
-      setDescription(card?.description ?? "")
-      setPriority(card?.priority ?? "")
-      setDueDate(card?.dueDate ?? "")
-      setLabels(normalizeLabels(card?.labels ?? []))
-      setLabelInput("")
-      setAssigneeIds(card?.assignees.map((assignee) => assignee.userId) ?? [])
-      setIsCompleted(card?.isCompleted ?? false)
+      const next = draftFromCard(card)
+      setTitle(next.title)
+      setDescription(next.description)
+      setPriority(next.priority)
+      setDueDate(next.dueDate)
+      setLabels(next.labels)
+      setLabelInput(next.labelInput)
+      setAssigneeIds(next.assigneeIds)
+      setIsCompleted(next.isCompleted)
       setCommentInput("")
       setSubtaskInput("")
       setDependencyId("")
@@ -123,55 +108,7 @@ export function useCardPanelForm({
       setSaveState("idle")
       setError(null)
     })
-  }, [card])
-
-  useEffect(() => {
-    if (!isCalendarOpen && !isLabelMenuOpen) {
-      return
-    }
-
-    function dismissLayersOutside(target: EventTarget | null) {
-      if (!(target instanceof Node)) {
-        return
-      }
-
-      if (!calendarContainerRef.current?.contains(target)) {
-        setIsCalendarOpen(false)
-      }
-
-      if (!labelMenuContainerRef.current?.contains(target)) {
-        setIsLabelMenuOpen(false)
-      }
-    }
-
-    function handlePointerDown(event: PointerEvent) {
-      dismissLayersOutside(event.target)
-    }
-
-    function handleFocusIn(event: FocusEvent) {
-      dismissLayersOutside(event.target)
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key !== "Escape") {
-        return
-      }
-
-      setIsCalendarOpen(false)
-      setIsLabelMenuOpen(false)
-      event.stopPropagation()
-    }
-
-    document.addEventListener("pointerdown", handlePointerDown, true)
-    document.addEventListener("focusin", handleFocusIn, true)
-    window.addEventListener("keydown", handleKeyDown, true)
-
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown, true)
-      document.removeEventListener("focusin", handleFocusIn, true)
-      window.removeEventListener("keydown", handleKeyDown, true)
-    }
-  }, [isCalendarOpen, isLabelMenuOpen])
+  }, [card, setIsCalendarOpen, setIsLabelMenuOpen])
 
   async function submit(nextCompleted = isCompleted) {
     const currentCard = card
@@ -180,17 +117,14 @@ export function useCardPanelForm({
       return
     }
 
-    if (!title.trim()) {
-      setError("Card title is required.")
+    const validationError = validateDraft(draft)
+
+    if (validationError) {
+      setError(validationError)
       return
     }
 
-    if (dueDate && dueDate < todayDateKey()) {
-      setError("Due date cannot be in the past.")
-      return
-    }
-
-    const submittedLabels = normalizeLabels([...labels, labelInput]).slice(0, 8)
+    const submittedLabels = submittedDraftLabels(draft)
     setLabels(submittedLabels)
     setLabelInput("")
     setError(null)
@@ -198,15 +132,10 @@ export function useCardPanelForm({
     setIsCompleted(nextCompleted)
 
     try {
-      await onSave(currentCard, {
-        title,
-        description,
-        priority,
-        dueDate: dueDate || null,
-        labels: submittedLabels,
-        assigneeIds,
-        isCompleted: nextCompleted,
-      })
+      await onSave(
+        currentCard,
+        toCardInput(draft, submittedLabels, nextCompleted)
+      )
       setSaveState("saved")
       window.setTimeout(() => setSaveState("idle"), 1400)
     } catch {
@@ -215,55 +144,53 @@ export function useCardPanelForm({
     }
   }
 
-  async function addComment() {
+  async function runCardAction(
+    input: string,
+    action: (card: BoardCard) => Promise<void>,
+    onSuccess: () => void,
+    failureMessage: string
+  ) {
     const currentCard = card
 
-    if (isReadOnly || !currentCard || !commentInput.trim()) {
+    if (isReadOnly || !currentCard || !input.trim()) {
       return
     }
 
     setError(null)
 
     try {
-      await onAddComment(currentCard, commentInput)
-      setCommentInput("")
+      await action(currentCard)
+      onSuccess()
     } catch {
-      setError("Comment could not be added.")
+      setError(failureMessage)
     }
   }
 
-  async function addSubtask() {
-    const currentCard = card
-
-    if (isReadOnly || !currentCard || !subtaskInput.trim()) {
-      return
-    }
-
-    setError(null)
-
-    try {
-      await onCreateSubtask(currentCard, subtaskInput)
-      setSubtaskInput("")
-    } catch {
-      setError("Subtask could not be added.")
-    }
+  function addComment() {
+    return runCardAction(
+      commentInput,
+      (currentCard) => onAddComment(currentCard, commentInput),
+      () => setCommentInput(""),
+      "Comment could not be added."
+    )
   }
 
-  async function addDependency() {
-    const currentCard = card
+  function addSubtask() {
+    return runCardAction(
+      subtaskInput,
+      (currentCard) => onCreateSubtask(currentCard, subtaskInput),
+      () => setSubtaskInput(""),
+      "Subtask could not be added."
+    )
+  }
 
-    if (isReadOnly || !currentCard || !dependencyId) {
-      return
-    }
-
-    setError(null)
-
-    try {
-      await onAddDependency(currentCard, dependencyId)
-      setDependencyId("")
-    } catch {
-      setError("Dependency could not be added.")
-    }
+  function addDependency() {
+    return runCardAction(
+      dependencyId,
+      (currentCard) => onAddDependency(currentCard, dependencyId),
+      () => setDependencyId(""),
+      "Dependency could not be added."
+    )
   }
 
   function addLabel() {
@@ -271,13 +198,13 @@ export function useCardPanelForm({
       return
     }
 
-    const next = normalizeLabel(labelInput)
+    const next = addDraftLabel(labels, labelInput)
 
     if (!next) {
       return
     }
 
-    setLabels((current) => normalizeLabels([...current, next]).slice(0, 8))
+    setLabels(next)
     setLabelInput("")
     setIsLabelMenuOpen(false)
   }
@@ -287,19 +214,7 @@ export function useCardPanelForm({
       return
     }
 
-    setLabels((current) => {
-      const exists = current.some(
-        (candidate) => candidate.toLowerCase() === label.toLowerCase()
-      )
-
-      if (exists) {
-        return current.filter(
-          (candidate) => candidate.toLowerCase() !== label.toLowerCase()
-        )
-      }
-
-      return normalizeLabels([...current, label]).slice(0, 8)
-    })
+    setLabels((current) => toggleDraftLabel(current, label))
     setLabelInput("")
     setIsLabelMenuOpen(false)
   }
@@ -310,7 +225,7 @@ export function useCardPanelForm({
     addLabel,
     addSubtask,
     assigneeIds,
-    calendarContainerRef,
+    calendarContainerRef: calendar.containerRef,
     canCreateLabel,
     commentInput,
     dependencyId,
@@ -318,11 +233,11 @@ export function useCardPanelForm({
     dueDate,
     error,
     hasChanges,
-    isCalendarOpen,
+    isCalendarOpen: calendar.isOpen,
     isCompleted,
-    isLabelMenuOpen,
+    isLabelMenuOpen: labelMenu.isOpen,
     labelInput,
-    labelMenuContainerRef,
+    labelMenuContainerRef: labelMenu.containerRef,
     labelSuggestions,
     labels,
     normalizedLabelInput,
