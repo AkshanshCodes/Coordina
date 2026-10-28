@@ -9,7 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { priorityLabel } from "@/features/tasks/board-constants"
+import { priorityLabel } from "@/features/board/model/board-constants"
 import type { BoardCardPriority } from "@/types/task"
 import type { WorkspaceMember } from "@/types/workspace"
 

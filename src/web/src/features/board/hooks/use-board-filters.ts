@@ -5,7 +5,7 @@ import {
   type BoardFocus,
   countBoardCards,
   filterBoard,
-} from "@/features/tasks/board-utils"
+} from "@/features/board/board-utils"
 import type { Board, BoardCardPriority } from "@/types/task"
 
 export function useBoardFilters(

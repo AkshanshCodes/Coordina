@@ -19,12 +19,12 @@ import {
   formatDateTime,
   initials,
   userLabel,
-} from "@/features/tasks/board-utils"
-import { CardCommentsSection } from "@/features/tasks/components/card-comments-section"
-import { CardDependenciesSection } from "@/features/tasks/components/card-dependencies-section"
-import { CardDetailsFields } from "@/features/tasks/components/card-details-fields"
-import { CardSubtasksSection } from "@/features/tasks/components/card-subtasks-section"
-import { useCardPanelForm } from "@/features/tasks/use-card-panel-form"
+} from "@/features/board/board-utils"
+import { CardCommentsSection } from "@/features/board/components/card-comments-section"
+import { CardDependenciesSection } from "@/features/board/components/card-dependencies-section"
+import { CardDetailsFields } from "@/features/board/components/card-details-fields"
+import { CardSubtasksSection } from "@/features/board/components/card-subtasks-section"
+import { useCardPanelForm } from "@/features/board/hooks/use-card-panel-form"
 import type {
   BoardCard,
   BoardCardDependencyAnalysis,

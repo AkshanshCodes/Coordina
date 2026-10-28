@@ -8,7 +8,7 @@ import {
 } from "@phosphor-icons/react"
 
 import { Button } from "@/components/ui/button"
-import type { BoardFocus, BoardMetrics } from "@/features/tasks/board-utils"
+import type { BoardFocus, BoardMetrics } from "@/features/board/board-utils"
 
 type BoardFocusTabsProps = {
   focus: BoardFocus

@@ -12,7 +12,7 @@ import {
   moveCardInBoard,
   removeCardFromBoard,
   renameListInBoard,
-} from "@/features/tasks/board-utils"
+} from "@/features/board/board-utils"
 import {
   addCardComment,
   addCardDependency,
@@ -30,8 +30,8 @@ import {
   updateCard,
   updateList,
   updateSubtask,
-} from "@/features/tasks/task-api"
-import { useBoardFilters } from "@/features/tasks/use-board-filters"
+} from "@/features/board/api/board-api"
+import { useBoardFilters } from "@/features/board/hooks/use-board-filters"
 import type { Project } from "@/types/project"
 import type {
   Board,

@@ -11,18 +11,18 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { isActiveWorkList } from "@/features/tasks/board-utils"
-import { BoardFilterMenu } from "@/features/tasks/components/board-filter-menu"
-import { BoardFocusTabs } from "@/features/tasks/components/board-focus-tabs"
-import { BoardListColumn } from "@/features/tasks/components/board-list-column"
+import { isActiveWorkList } from "@/features/board/board-utils"
+import { BoardFilterMenu } from "@/features/board/components/board-filter-menu"
+import { BoardFocusTabs } from "@/features/board/components/board-focus-tabs"
+import { BoardListColumn } from "@/features/board/components/board-list-column"
 import {
   BoardSetupOnboarding,
   BoardStateMessage,
-} from "@/features/tasks/components/board-messages"
-import { BoardPlanningPanel } from "@/features/tasks/components/board-planning-panel"
-import { BoardSkeleton } from "@/features/tasks/components/board-skeleton"
-import { CardSidePanel } from "@/features/tasks/components/card-side-panel"
-import { useProjectBoard } from "@/features/tasks/use-project-board"
+} from "@/features/board/components/board-messages"
+import { BoardPlanningPanel } from "@/features/board/components/board-planning-panel"
+import { BoardSkeleton } from "@/features/board/components/board-skeleton"
+import { CardSidePanel } from "@/features/board/components/card-side-panel"
+import { useProjectBoard } from "@/features/board/hooks/use-project-board"
 import type { Project } from "@/types/project"
 import type { Workspace } from "@/types/workspace"
 

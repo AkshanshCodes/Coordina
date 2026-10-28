@@ -10,13 +10,13 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { boardCardPriorities } from "@/features/tasks/board-constants"
+import { boardCardPriorities } from "@/features/board/model/board-constants"
 import {
   panelLabelClass,
   shortDate,
   todayDateKey,
-} from "@/features/tasks/board-utils"
-import type { CardPanelForm } from "@/features/tasks/use-card-panel-form"
+} from "@/features/board/board-utils"
+import type { CardPanelForm } from "@/features/board/hooks/use-card-panel-form"
 
 type CardDetailsFieldsProps = {
   form: CardPanelForm

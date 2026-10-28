@@ -4,11 +4,11 @@ import { useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { boardTemplates } from "@/features/tasks/board-constants"
+import { boardTemplates } from "@/features/board/model/board-constants"
 import {
   BoardTemplateOption,
   BoardTemplatePreview,
-} from "@/features/tasks/components/board-template-preview"
+} from "@/features/board/components/board-template-preview"
 import type { BoardTemplate } from "@/types/task"
 
 type TemplateChooserProps = {

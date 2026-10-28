@@ -16,7 +16,7 @@ import { useAuth } from "@/features/auth/auth-context"
 import { ProjectIconMark } from "@/features/projects/components/project-personalization"
 import { getProject } from "@/features/projects/project-api"
 import type { Project } from "@/types/project"
-import { ProjectBoard } from "@/features/tasks/components/project-board"
+import { ProjectBoard } from "@/features/board/components/project-board"
 import { useWorkspaces } from "@/features/workspaces/workspace-context"
 
 type ProjectShellProps = {

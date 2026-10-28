@@ -8,14 +8,14 @@ import {
   WarningCircle,
 } from "@phosphor-icons/react"
 
-import type { BoardMetrics, WipAlert } from "@/features/tasks/board-utils"
+import type { BoardMetrics, WipAlert } from "@/features/board/board-utils"
 import {
   type PlanTone,
   getPlanExplanation,
   getPlanTags,
   getShortPlanReason,
   getToneClass,
-} from "@/features/tasks/plan-insights"
+} from "@/features/board/model/planning-insights"
 import type { BoardGraph, BoardGraphPlanItem } from "@/types/task"
 
 type BoardPlanningPanelProps = {

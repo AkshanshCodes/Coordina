@@ -1,6 +1,6 @@
 import { Kanban } from "@phosphor-icons/react"
 
-import { TemplateChooser } from "@/features/tasks/components/template-chooser"
+import { TemplateChooser } from "@/features/board/components/template-chooser"
 import type { BoardTemplate } from "@/types/task"
 
 type BoardSetupOnboardingProps = {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { getBoardMetrics, getWipAlerts } from "@/features/tasks/board-utils"
+import { getBoardMetrics, getWipAlerts } from "@/features/board/board-utils"
 import type { Board, BoardCard, BoardList, BoardTaskStatus } from "@/types/task"
 
 function card(id: string, isCompleted = false): BoardCard {

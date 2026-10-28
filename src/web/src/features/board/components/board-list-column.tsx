@@ -18,7 +18,7 @@ import {
   priorityBar,
   priorityDot,
   shortDate,
-} from "@/features/tasks/board-utils"
+} from "@/features/board/board-utils"
 import { cn } from "@/lib/utils"
 import type { BoardCard, BoardList } from "@/types/task"
 

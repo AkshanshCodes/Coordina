@@ -6,7 +6,7 @@ import {
   sameLabels,
   sameStrings,
   todayDateKey,
-} from "@/features/tasks/board-utils"
+} from "@/features/board/board-utils"
 import type { BoardCard, BoardCardInput, BoardCardPriority } from "@/types/task"
 
 type UseCardPanelFormOptions = {
