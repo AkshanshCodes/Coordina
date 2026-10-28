@@ -4,6 +4,9 @@ namespace Coordina.Api.Modules.Boards.Application;
 
 internal static class BoardRules
 {
+  public const int MinEstimatedMinutes = 5;
+  public const int MaxEstimatedMinutes = 2880;
+
   public static BoardTemplate? ParseTemplate(
     string? template,
     out string? error)
@@ -174,7 +177,8 @@ internal static class BoardRules
     string? description,
     string? priorityError,
     IReadOnlyCollection<string> labels,
-    DateOnly? dueDate)
+    DateOnly? dueDate,
+    int? estimatedMinutes = null)
   {
     var errors = new Dictionary<string, string[]>();
 
@@ -208,6 +212,13 @@ internal static class BoardRules
       && dueDate.Value < DateOnly.FromDateTime(DateTime.UtcNow))
     {
       errors["DueDate"] = ["Due date cannot be in the past."];
+    }
+
+    if (estimatedMinutes is < MinEstimatedMinutes or > MaxEstimatedMinutes)
+    {
+      errors["EstimatedMinutes"] = [
+        $"Effort must be between {MinEstimatedMinutes} and {MaxEstimatedMinutes} minutes."
+      ];
     }
 
     return errors;

@@ -149,6 +149,7 @@ public sealed record BoardCardMutation(
   string? Description,
   BoardCardPriority? Priority,
   DateOnly? DueDate,
+  int? EstimatedMinutes,
   IReadOnlyCollection<string> Labels,
   IReadOnlyCollection<Guid> AssigneeIds,
   bool IsCompleted,

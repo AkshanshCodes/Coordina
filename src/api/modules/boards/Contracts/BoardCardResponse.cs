@@ -8,6 +8,7 @@ public sealed record BoardCardResponse(
   string? Description,
   string? Priority,
   DateOnly? DueDate,
+  int? EstimatedMinutes,
   IReadOnlyCollection<string> Labels,
   bool IsCompleted,
   DateTimeOffset? CompletedAt,

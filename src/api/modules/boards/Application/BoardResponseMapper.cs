@@ -41,6 +41,7 @@ internal static class BoardResponseMapper
       card.Description,
       card.Priority?.ToString().ToUpperInvariant(),
       card.DueDate,
+      card.EstimatedMinutes,
       card.Labels,
       card.IsCompleted,
       card.CompletedAt,

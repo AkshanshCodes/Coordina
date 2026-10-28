@@ -190,6 +190,37 @@ public sealed class BoardWorkflowPostgresTests(PostgresContainerFixture postgres
       $"SELECT list_id FROM board_cards WHERE id = '{cardId}'"));
   }
 
+  [Fact]
+  public async Task CardEffort_RoundTripsAndIsConstrained()
+  {
+    var flow = await CreateFlowAsync("BASIC", null);
+    var todo = flow.Board.Lists.Single(list => list.TaskStatus == "TODO");
+    var created = await Api.SendForAsync<BoardResponse>(
+      HttpMethod.Post,
+      $"{flow.BoardPath}/lists/{todo.Id}/cards",
+      flow.AccessToken,
+      new { title = "Sized", estimatedMinutes = 45 });
+    var cardId = created.Lists.SelectMany(list => list.Cards)
+      .Single(card => card.Title == "Sized").Id;
+
+    Assert.Equal(45, await Database.ScalarAsync<int>(
+      $"SELECT estimated_minutes FROM board_cards WHERE id = '{cardId}'"));
+
+    await Api.SendForAsync<BoardResponse>(
+      HttpMethod.Patch,
+      $"{flow.BoardPath}/cards/{cardId}",
+      flow.AccessToken,
+      new { clearEstimatedMinutes = true });
+
+    Assert.Null(await Database.ScalarAsync<int?>(
+      $"SELECT estimated_minutes FROM board_cards WHERE id = '{cardId}'"));
+
+    var violation = await Assert.ThrowsAsync<Npgsql.PostgresException>(() =>
+      Database.ExecuteAsync(
+        $"UPDATE board_cards SET estimated_minutes = 2881 WHERE id = '{cardId}'"));
+    Assert.Equal("ck_board_cards_estimated_minutes", violation.ConstraintName);
+  }
+
   private async Task<Flow> CreateFlowAsync(string template, string[]? customListTitles)
   {
     var user = await Api.RegisterAsync();

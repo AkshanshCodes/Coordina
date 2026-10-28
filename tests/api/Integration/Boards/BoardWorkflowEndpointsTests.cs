@@ -226,6 +226,50 @@ public sealed class BoardWorkflowEndpointsTests(ApiTestApplicationFactory factor
     Assert.False(renamed.IsCompleted);
   }
 
+  [Fact]
+  public async Task CardEffort_CanBeSetKeptAndCleared()
+  {
+    var scope = await CreateScopeAsync();
+    var board = await CreateBoardAsync(scope, "BASIC", null);
+    var created = await SendForBoardAsync(
+      scope,
+      HttpMethod.Post,
+      $"{BoardPath(scope, board)}/lists/{ListWithStatus(board, "TODO").Id}/cards",
+      new { title = "Estimate me", estimatedMinutes = 30 });
+    var card = FindCard(created, "Estimate me");
+    Assert.Equal(30, card.EstimatedMinutes);
+
+    var updated = await UpdateCardAsync(scope, board, card.Id, new { estimatedMinutes = 120 });
+    Assert.Equal(120, FindCard(updated, "Estimate me").EstimatedMinutes);
+
+    var kept = await UpdateCardAsync(scope, board, card.Id, new { title = "Estimated" });
+    Assert.Equal(120, FindCard(kept, "Estimated").EstimatedMinutes);
+
+    var cleared = await UpdateCardAsync(
+      scope,
+      board,
+      card.Id,
+      new { clearEstimatedMinutes = true });
+    Assert.Null(FindCard(cleared, "Estimated").EstimatedMinutes);
+  }
+
+  [Theory]
+  [InlineData(4)]
+  [InlineData(2881)]
+  public async Task CardEffort_OutOfRange_ReturnsValidationProblem(int minutes)
+  {
+    var scope = await CreateScopeAsync();
+    var board = await CreateBoardAsync(scope, "BASIC", null);
+
+    var response = await SendAsync(
+      scope.AccessToken,
+      HttpMethod.Post,
+      $"{BoardPath(scope, board)}/lists/{ListWithStatus(board, "TODO").Id}/cards",
+      new { title = "Too odd", estimatedMinutes = minutes });
+
+    Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+  }
+
   private static string[] StatusesOf(BoardResponse board) =>
     board.Lists
       .OrderBy(list => list.Position)
@@ -390,5 +434,6 @@ public sealed class BoardWorkflowEndpointsTests(ApiTestApplicationFactory factor
     string ListId,
     string Title,
     bool IsCompleted,
-    DateTimeOffset? CompletedAt);
+    DateTimeOffset? CompletedAt,
+    int? EstimatedMinutes);
 }

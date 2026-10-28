@@ -13,6 +13,7 @@ public sealed class BoardCardEntity
   public string? Description { get; set; }
   public BoardCardPriority? Priority { get; set; }
   public DateOnly? DueDate { get; set; }
+  public int? EstimatedMinutes { get; set; }
   public string[] Labels { get; set; } = [];
   public bool IsCompleted { get; set; }
   public DateTimeOffset? CompletedAt { get; set; }

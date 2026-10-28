@@ -8,4 +8,6 @@ public sealed record UpdateBoardCardRequest(
   bool ClearDueDate,
   string[]? Labels,
   Guid[]? AssigneeIds,
-  bool? IsCompleted);
+  bool? IsCompleted,
+  int? EstimatedMinutes = null,
+  bool ClearEstimatedMinutes = false);

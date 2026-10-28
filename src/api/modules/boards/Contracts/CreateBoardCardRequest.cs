@@ -6,4 +6,5 @@ public sealed record CreateBoardCardRequest(
   string? Priority,
   DateOnly? DueDate,
   string[]? Labels,
-  Guid[]? AssigneeIds);
+  Guid[]? AssigneeIds,
+  int? EstimatedMinutes = null);

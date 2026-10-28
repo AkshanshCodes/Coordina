@@ -426,6 +426,7 @@ public sealed class PostgresBoardStore(CoordinaDbContext dbContext)
       Description = mutation.Description,
       Priority = mutation.Priority,
       DueDate = mutation.DueDate,
+      EstimatedMinutes = mutation.EstimatedMinutes,
       Labels = mutation.Labels.ToArray(),
       IsCompleted = mutation.IsCompleted,
       CompletedAt = mutation.CompletedAt,
@@ -504,6 +505,7 @@ public sealed class PostgresBoardStore(CoordinaDbContext dbContext)
     card.Description = mutation.Description;
     card.Priority = mutation.Priority;
     card.DueDate = mutation.DueDate;
+    card.EstimatedMinutes = mutation.EstimatedMinutes;
     card.Labels = mutation.Labels.ToArray();
     card.IsCompleted = mutation.IsCompleted;
     card.CompletedAt = mutation.CompletedAt;
@@ -1022,6 +1024,7 @@ public sealed class PostgresBoardStore(CoordinaDbContext dbContext)
       entity.Description,
       entity.Priority,
       entity.DueDate,
+      entity.EstimatedMinutes,
       entity.Labels,
       entity.IsCompleted,
       entity.CompletedAt,

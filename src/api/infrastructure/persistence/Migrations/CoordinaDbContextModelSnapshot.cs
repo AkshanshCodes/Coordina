@@ -187,6 +187,10 @@ namespace Coordina.Api.Infrastructure.Persistence.Migrations
                         .HasColumnType("date")
                         .HasColumnName("due_date");
 
+                    b.Property<int?>("EstimatedMinutes")
+                        .HasColumnType("integer")
+                        .HasColumnName("estimated_minutes");
+
                     b.Property<bool>("IsCompleted")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -239,7 +243,10 @@ namespace Coordina.Api.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("WorkspaceId", "ProjectId", "BoardId");
 
-                    b.ToTable("board_cards", (string)null);
+                    b.ToTable("board_cards", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_board_cards_estimated_minutes", "estimated_minutes IS NULL OR estimated_minutes BETWEEN 5 AND 2880");
+                        });
                 });
 
             modelBuilder.Entity("Coordina.Api.Modules.Boards.Infrastructure.BoardCardSubtaskEntity", b =>
