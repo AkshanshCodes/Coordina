@@ -8,5 +8,13 @@ public sealed record GraphWorkRecommendation<TNode>(
   int UrgencyScore,
   int PriorityScore,
   int ProgressScore,
-  bool IsCriticalPath)
+  bool IsCriticalPath,
+  int EffortScore,
+  int AssignmentScore,
+  int MomentumScore,
+  int ContextScore,
+  bool FitsAvailableTime,
+  bool IsAssignmentMatch,
+  bool IsContextMatch,
+  bool IsInProgress)
   where TNode : notnull;

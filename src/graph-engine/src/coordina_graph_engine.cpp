@@ -11,7 +11,7 @@
 
 extern "C" const char* coordina_graph_version(void)
 {
-  return "coordina-graph-engine/0.3.0";
+  return "coordina-graph-engine/0.4.0";
 }
 
 extern "C" coordina_graph_edge_status coordina_graph_evaluate_edge(
@@ -241,6 +241,7 @@ extern "C" std::size_t coordina_graph_plan_work(
   std::size_t edge_count,
   const coordina_graph_work_item* work_items,
   std::size_t work_item_count,
+  const coordina_graph_planning_options* options,
   coordina_graph_work_recommendation* output,
   std::size_t output_capacity)
 {
@@ -260,7 +261,8 @@ extern "C" std::size_t coordina_graph_plan_work(
     work_item_count);
   const auto recommendations = coordina::graph::plan_work(
     graph,
-    native_work_items);
+    native_work_items,
+    coordina::graph::build_planning_options(options));
 
   return coordina::graph::write_work_recommendations(
     recommendations,

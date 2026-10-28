@@ -33,6 +33,9 @@ std::size_t write_node_analyses(
   coordina_graph_node_analysis* output,
   std::size_t output_capacity);
 
+PlanningOptions build_planning_options(
+  const coordina_graph_planning_options* options) noexcept;
+
 std::vector<WorkItem> build_work_items(
   const coordina_graph_work_item* work_items,
   std::size_t work_item_count);

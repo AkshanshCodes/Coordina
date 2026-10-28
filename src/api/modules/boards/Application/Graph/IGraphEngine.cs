@@ -43,5 +43,6 @@ public interface IGraphEngine<TNode>
   IReadOnlyCollection<GraphWorkRecommendation<TNode>> PlanWork(
     IReadOnlyCollection<TNode> nodes,
     IReadOnlyCollection<GraphEdge<TNode>> edges,
-    IReadOnlyCollection<GraphWorkItem<TNode>> workItems);
+    IReadOnlyCollection<GraphWorkItem<TNode>> workItems,
+    GraphPlanningOptions? options = null);
 }

@@ -190,7 +190,8 @@ public sealed class NativeGuidGraphEngine : IGraphEngine<Guid>
   public IReadOnlyCollection<GraphWorkRecommendation<Guid>> PlanWork(
     IReadOnlyCollection<Guid> nodes,
     IReadOnlyCollection<GraphEdge<Guid>> edges,
-    IReadOnlyCollection<GraphWorkItem<Guid>> workItems)
+    IReadOnlyCollection<GraphWorkItem<Guid>> workItems,
+    GraphPlanningOptions? options = null)
   {
     ArgumentNullException.ThrowIfNull(nodes);
     ArgumentNullException.ThrowIfNull(edges);
@@ -199,6 +200,7 @@ public sealed class NativeGuidGraphEngine : IGraphEngine<Guid>
     var nativeNodes = ToNativeNodes(nodes);
     var nativeEdges = ToNativeEdges(edges);
     var nativeWorkItems = ToNativeWorkItems(workItems);
+    var nativeOptions = ToNativeOptions(options ?? GraphPlanningOptions.Default);
 
     return ReadWorkRecommendationCollection(
       nativeWorkItems.Length,
@@ -209,6 +211,7 @@ public sealed class NativeGuidGraphEngine : IGraphEngine<Guid>
         ToNativeCount(nativeEdges.Length),
         nativeWorkItems,
         ToNativeCount(nativeWorkItems.Length),
+        ref nativeOptions,
         output,
         ToNativeCount(output.Length)));
   }
@@ -262,7 +265,15 @@ public sealed class NativeGuidGraphEngine : IGraphEngine<Guid>
         checked((int)recommendation.UrgencyScore),
         checked((int)recommendation.PriorityScore),
         checked((int)recommendation.ProgressScore),
-        recommendation.IsCriticalPath != 0U))
+        recommendation.IsCriticalPath != 0U,
+        recommendation.EffortScore,
+        recommendation.AssignmentScore,
+        checked((int)recommendation.MomentumScore),
+        checked((int)recommendation.ContextScore),
+        recommendation.FitsAvailableTime != 0U,
+        recommendation.IsAssignmentMatch != 0U,
+        recommendation.IsContextMatch != 0U,
+        recommendation.IsInProgress != 0U))
       .ToArray();
   }
 
@@ -288,8 +299,19 @@ public sealed class NativeGuidGraphEngine : IGraphEngine<Guid>
         item.DueDays,
         checked((uint)item.SubtaskTotal),
         checked((uint)item.SubtaskCompleted),
-        checked((uint)item.Position)))
+        checked((uint)item.Position),
+        checked((uint)item.EstimatedMinutes),
+        (uint)item.Assignment,
+        item.IsInProgress ? 1U : 0U,
+        item.IsContextMatch ? 1U : 0U))
       .ToArray();
+
+  private static NativeGraphPlanningOptions ToNativeOptions(
+    GraphPlanningOptions options) =>
+    new(
+      checked((uint)options.AvailableMinutes),
+      options.PreferAssigned ? 1U : 0U,
+      options.IncludeUnassigned ? 1U : 0U);
 
   private static NativeGraphNodeId ToNative(Guid value)
   {
@@ -339,7 +361,17 @@ public sealed class NativeGuidGraphEngine : IGraphEngine<Guid>
     int DueDays,
     uint SubtaskTotal,
     uint SubtaskCompleted,
-    uint Position);
+    uint Position,
+    uint EstimatedMinutes,
+    uint Assignment,
+    uint IsInProgress,
+    uint IsContextMatch);
+
+  [StructLayout(LayoutKind.Sequential)]
+  private record struct NativeGraphPlanningOptions(
+    uint AvailableMinutes,
+    uint PreferAssigned,
+    uint IncludeUnassigned);
 
   [StructLayout(LayoutKind.Sequential)]
   private readonly record struct NativeGraphWorkRecommendation(
@@ -350,7 +382,15 @@ public sealed class NativeGuidGraphEngine : IGraphEngine<Guid>
     uint UrgencyScore,
     uint PriorityScore,
     uint ProgressScore,
-    uint IsCriticalPath);
+    uint IsCriticalPath,
+    int EffortScore,
+    int AssignmentScore,
+    uint MomentumScore,
+    uint ContextScore,
+    uint FitsAvailableTime,
+    uint IsAssignmentMatch,
+    uint IsContextMatch,
+    uint IsInProgress);
 
   private static partial class NativeMethods
   {
@@ -467,6 +507,7 @@ public sealed class NativeGuidGraphEngine : IGraphEngine<Guid>
       UIntPtr edgeCount,
       NativeGraphWorkItem[] workItems,
       UIntPtr workItemCount,
+      ref NativeGraphPlanningOptions options,
       [Out]
       NativeGraphWorkRecommendation[] output,
       UIntPtr outputCapacity);

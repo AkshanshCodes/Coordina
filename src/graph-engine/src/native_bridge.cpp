@@ -7,6 +7,19 @@ namespace coordina::graph
 {
 namespace
 {
+Assignment to_assignment(std::uint32_t value) noexcept
+{
+  switch (value)
+  {
+    case COORDINA_GRAPH_ASSIGNED_TO_REQUESTER:
+      return Assignment::requester;
+    case COORDINA_GRAPH_ASSIGNED_TO_OTHERS:
+      return Assignment::others;
+    default:
+      return Assignment::unassigned;
+  }
+}
+
 std::uint32_t to_abi_count(std::size_t value) noexcept
 {
   constexpr auto max = std::numeric_limits<std::uint32_t>::max();
@@ -103,6 +116,21 @@ std::size_t write_node_analyses(
   return count;
 }
 
+PlanningOptions build_planning_options(
+  const coordina_graph_planning_options* options) noexcept
+{
+  if (options == nullptr)
+  {
+    return PlanningOptions{};
+  }
+
+  return PlanningOptions{
+    options->available_minutes,
+    options->prefer_assigned != 0U,
+    options->include_unassigned != 0U
+  };
+}
+
 std::vector<WorkItem> build_work_items(
   const coordina_graph_work_item* work_items,
   std::size_t work_item_count)
@@ -119,7 +147,11 @@ std::vector<WorkItem> build_work_items(
       work_items[index].due_days,
       work_items[index].subtask_total,
       work_items[index].subtask_completed,
-      work_items[index].position
+      work_items[index].position,
+      work_items[index].estimated_minutes,
+      to_assignment(work_items[index].assignment),
+      work_items[index].is_in_progress != 0U,
+      work_items[index].is_context_match != 0U
     });
   }
 
@@ -150,7 +182,15 @@ std::size_t write_work_recommendations(
       recommendations[index].urgency_score,
       recommendations[index].priority_score,
       recommendations[index].progress_score,
-      recommendations[index].is_critical_path ? 1U : 0U
+      recommendations[index].is_critical_path ? 1U : 0U,
+      recommendations[index].effort_score,
+      recommendations[index].assignment_score,
+      recommendations[index].momentum_score,
+      recommendations[index].context_score,
+      recommendations[index].fits_available_time ? 1U : 0U,
+      recommendations[index].is_assignment_match ? 1U : 0U,
+      recommendations[index].is_context_match ? 1U : 0U,
+      recommendations[index].is_in_progress ? 1U : 0U
     };
   }
 

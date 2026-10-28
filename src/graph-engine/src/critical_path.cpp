@@ -60,6 +60,11 @@ std::vector<NodeId> critical_path(
     }
   }
 
+  if (longest_depth == 0U)
+  {
+    return {};
+  }
+
   std::vector<NodeId> path;
   path.push_back(end);
 

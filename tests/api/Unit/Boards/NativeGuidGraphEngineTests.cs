@@ -211,4 +211,60 @@ public sealed class NativeGuidGraphEngineTests
     Assert.Equal(0, recommendations[1].BlockerCount);
     Assert.True(recommendations[2].BlockerCount > 0);
   }
+
+  [Fact]
+  public void PlanWork_PrefersRequesterWorkThatFitsTheFocusBlock()
+  {
+    var theirs = Guid.NewGuid();
+    var longMine = Guid.NewGuid();
+    var quickMine = Guid.NewGuid();
+
+    var recommendations = _graphEngine.PlanWork(
+      [theirs, longMine, quickMine],
+      [],
+      [
+        new GraphWorkItem<Guid>(theirs, false, 0, GraphWorkItem<Guid>.NoDueDate, 0, 0, 0,
+          EstimatedMinutes: 30, Assignment: GraphAssignment.Others),
+        new GraphWorkItem<Guid>(longMine, false, 0, GraphWorkItem<Guid>.NoDueDate, 0, 0, 1,
+          EstimatedMinutes: 120, Assignment: GraphAssignment.Requester),
+        new GraphWorkItem<Guid>(quickMine, false, 0, GraphWorkItem<Guid>.NoDueDate, 0, 0, 2,
+          EstimatedMinutes: 30, Assignment: GraphAssignment.Requester,
+          IsInProgress: true, IsContextMatch: true)
+      ],
+      new GraphPlanningOptions(AvailableMinutes: 60)).ToArray();
+
+    Assert.Equal([quickMine, longMine, theirs], recommendations.Select(item => item.Node));
+    var best = recommendations[0];
+    Assert.True(best.FitsAvailableTime);
+    Assert.True(best.IsAssignmentMatch);
+    Assert.True(best.IsContextMatch);
+    Assert.True(best.IsInProgress);
+    Assert.True(best.EffortScore > 0);
+    Assert.True(best.AssignmentScore > 0);
+    Assert.True(best.MomentumScore > 0);
+    Assert.True(best.ContextScore > 0);
+    Assert.False(recommendations[1].FitsAvailableTime);
+    Assert.True(recommendations[1].EffortScore < 0);
+    Assert.True(recommendations[2].AssignmentScore < 0);
+  }
+
+  [Fact]
+  public void PlanWork_WithoutOptions_IsUnrestricted()
+  {
+    var first = Guid.NewGuid();
+    var second = Guid.NewGuid();
+
+    var recommendations = _graphEngine.PlanWork(
+      [first, second],
+      [],
+      [
+        new GraphWorkItem<Guid>(first, false, 0, GraphWorkItem<Guid>.NoDueDate, 0, 0, 0,
+          EstimatedMinutes: 480),
+        new GraphWorkItem<Guid>(second, false, 0, GraphWorkItem<Guid>.NoDueDate, 0, 0, 1)
+      ]).ToArray();
+
+    Assert.Equal([first, second], recommendations.Select(item => item.Node));
+    Assert.All(recommendations, item => Assert.True(item.FitsAvailableTime));
+    Assert.All(recommendations, item => Assert.False(item.IsCriticalPath));
+  }
 }

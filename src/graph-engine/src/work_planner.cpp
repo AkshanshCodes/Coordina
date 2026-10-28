@@ -14,6 +14,13 @@ namespace coordina::graph
 namespace
 {
 constexpr auto no_due_days = std::numeric_limits<std::int32_t>::max();
+constexpr std::uint32_t momentum_bonus = 30U;
+constexpr std::int32_t requester_bonus = 40;
+constexpr std::int32_t not_preferred_penalty = -80;
+constexpr std::uint32_t context_bonus = 45U;
+constexpr std::int32_t fits_time_bonus = 40;
+constexpr std::int32_t too_long_penalty = -60;
+constexpr std::int64_t blocker_penalty = 70;
 
 std::uint32_t urgency_score(std::int32_t due_days) noexcept
 {
@@ -87,6 +94,67 @@ std::uint32_t unlock_score(const NodeAnalysis& analysis) noexcept
   return score > 220U ? 220U : static_cast<std::uint32_t>(score);
 }
 
+struct EffortFit
+{
+  std::int32_t score;
+  bool fits;
+};
+
+EffortFit effort_fit(
+  std::uint32_t estimated_minutes,
+  std::uint32_t available_minutes) noexcept
+{
+  if (available_minutes == 0U)
+  {
+    return EffortFit{0, true};
+  }
+
+  if (estimated_minutes == 0U)
+  {
+    return EffortFit{0, false};
+  }
+
+  return estimated_minutes <= available_minutes
+    ? EffortFit{fits_time_bonus, true}
+    : EffortFit{too_long_penalty, false};
+}
+
+std::int32_t assignment_score(
+  Assignment assignment,
+  const PlanningOptions& options) noexcept
+{
+  if (assignment == Assignment::requester)
+  {
+    return options.prefer_assigned ? requester_bonus : 0;
+  }
+
+  if (assignment == Assignment::others)
+  {
+    return options.prefer_assigned ? not_preferred_penalty : 0;
+  }
+
+  return options.include_unassigned ? 0 : not_preferred_penalty;
+}
+
+std::uint32_t clamp_score(std::int64_t score) noexcept
+{
+  if (score < 1)
+  {
+    return 1U;
+  }
+
+  constexpr auto max_score =
+    static_cast<std::int64_t>(std::numeric_limits<std::uint32_t>::max());
+  return static_cast<std::uint32_t>(score > max_score ? max_score : score);
+}
+
+bool node_less(NodeId left, NodeId right) noexcept
+{
+  return left.high != right.high
+    ? left.high < right.high
+    : left.low < right.low;
+}
+
 std::uint32_t blocker_count(
   const GraphSnapshot& graph,
   const std::unordered_map<NodeId, WorkItem, NodeHash>& items_by_node,
@@ -120,7 +188,8 @@ std::uint32_t position_for(
 
 std::vector<WorkRecommendation> plan_work(
   const GraphSnapshot& graph,
-  const std::vector<WorkItem>& work_items)
+  const std::vector<WorkItem>& work_items,
+  const PlanningOptions& options)
 {
   const auto analyses = analyze_nodes(graph);
 
@@ -180,26 +249,42 @@ std::vector<WorkRecommendation> plan_work(
       item.subtask_total,
       item.subtask_completed);
     const auto critical_bonus = is_critical ? 48U : 0U;
-    const auto base_score = 10U
+    const auto effort = effort_fit(
+      item.estimated_minutes,
+      options.available_minutes);
+    const auto assignment = assignment_score(item.assignment, options);
+    const auto momentum = item.is_in_progress ? momentum_bonus : 0U;
+    const auto context = item.is_context_match ? context_bonus : 0U;
+    const auto score = static_cast<std::int64_t>(10U)
       + unlock
       + urgency
       + priority
       + progress
-      + critical_bonus;
-    const auto blocker_penalty = blockers * 70U;
-    const auto score = base_score > blocker_penalty
-      ? base_score - blocker_penalty
-      : 1U;
+      + critical_bonus
+      + momentum
+      + context
+      + effort.score
+      + assignment
+      - static_cast<std::int64_t>(blockers) * blocker_penalty;
 
     recommendations.push_back(WorkRecommendation{
       item.node,
-      score,
+      clamp_score(score),
       blockers,
       unlock,
       urgency,
       priority,
       progress,
-      is_critical
+      is_critical,
+      effort.score,
+      assignment,
+      momentum,
+      context,
+      effort.fits,
+      item.assignment == Assignment::requester,
+      item.is_context_match,
+      item.is_in_progress,
+      score
     });
   }
 
@@ -216,9 +301,9 @@ std::vector<WorkRecommendation> plan_work(
         return left_actionable;
       }
 
-      if (left.score != right.score)
+      if (left.rank_score != right.rank_score)
       {
-        return left.score > right.score;
+        return left.rank_score > right.rank_score;
       }
 
       if (left.is_critical_path != right.is_critical_path)
@@ -226,8 +311,15 @@ std::vector<WorkRecommendation> plan_work(
         return left.is_critical_path;
       }
 
-      return position_for(items_by_node, left.node)
-        < position_for(items_by_node, right.node);
+      const auto left_position = position_for(items_by_node, left.node);
+      const auto right_position = position_for(items_by_node, right.node);
+
+      if (left_position != right_position)
+      {
+        return left_position < right_position;
+      }
+
+      return node_less(left.node, right.node);
     });
 
   return recommendations;
