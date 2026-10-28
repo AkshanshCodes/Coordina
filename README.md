@@ -119,6 +119,7 @@ src/graph-engine
     ├── dependency_validator.*     # Edge validation and cycle prevention
     ├── suggestion_engine.*        # Safe dependency target suggestions
     ├── planning_engine.*          # Ready nodes and dependency-first ordering
+    ├── work_planner.*             # Next-task ranking: effort, assignment, context, momentum
     ├── native_bridge.*            # ABI array conversion helpers
     └── coordina_graph_engine.cpp  # Exported native functions
 ```
@@ -486,7 +487,7 @@ The next meaningful layers are product layers, not more scaffolding:
 
 | Track | Intent |
 | --- | --- |
-| Boards | Core collaboration workflow: frontend decomposition, then context-aware planning |
+| Boards | Core collaboration workflow; context-aware planning is in place (see `docs/boards.mdx`) |
 | Realtime updates | Shared workspace presence and live state |
 | Audit trail | Owner visibility into membership and sensitive actions |
 | Production hardening | Rate limiting, refresh tokens, secret management, deploy docs |

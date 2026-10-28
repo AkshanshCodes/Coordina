@@ -42,6 +42,47 @@ A card is completed exactly when it sits in a `DONE` list.
 | `PATCH` with `isCompleted: false` | Moved to the first `TODO` list |
 | No list with the target status | `409 Conflict`; the card is not changed |
 
+## Planning
+
+The planning panel recommends what to do next. The native graph engine ranks
+open cards with fixed, explainable rules:
+
+| Signal | Effect |
+| --- | --- |
+| Due date, priority, dependency impact, critical path, subtask progress | Existing base score |
+| Each unfinished dependency | Large penalty; blocked cards are never the primary suggestion |
+| Card in an `IN_PROGRESS` list | Bonus: finish what is started |
+| Assigned to you | Bonus |
+| Assigned only to someone else | Penalty (still listed) |
+| Has the selected context label | Bonus |
+| Effort fits the selected focus time | Bonus |
+| Effort longer than the focus time | Penalty |
+| Effort unknown with a focus time | No bonus, no penalty, shown as "Effort unknown" |
+
+Ties break on board position, then card id, so the same board always gives the
+same order. A board without dependencies has no critical path.
+
+Cards carry an optional effort estimate, `estimatedMinutes` (5–2,880). Set it on
+create or update; clear it with `clearEstimatedMinutes: true`.
+
+```http
+GET /workspaces/{workspaceId}/projects/{projectId}/boards/{boardId}/graph
+    ?availableMinutes=60&context=backend&preferAssigned=true&includeUnassigned=true
+```
+
+| Parameter | Values | Default |
+| --- | --- | --- |
+| `availableMinutes` | `0` (no limit) or 5–2,880 | `0` |
+| `context` | A label; `#` and spaces are normalized, max 32 characters | none |
+| `preferAssigned` | `true` / `false` | `true` |
+| `includeUnassigned` | `true` / `false` | `true` |
+
+Invalid values return `400`. Each plan item includes structured explanation
+fields: `estimatedMinutes`, `fitsAvailableTime`, `isAssignedToMe`,
+`isContextMatch`, `isInProgress`, and `isShortestAlternative`. When nothing ready
+fits the focus time, the ready card with the smallest known estimate is flagged
+`isShortestAlternative`.
+
 ## API surface
 
 ```http
