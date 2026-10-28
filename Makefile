@@ -1,7 +1,9 @@
-.PHONY: help graph-engine-build graph-engine-test api api-restore api-tools api-build api-format api-format-check api-test api-migration api-migrate web web-build web-format web-format-check web-lint web-test web-e2e web-typecheck docs test lint format format-check quality dev docker-up docker-down clean start-api watch-api run-web start-full
+.PHONY: help graph-engine-build graph-engine-test api api-restore api-tools api-build api-format api-format-check api-test api-test-fast api-test-postgres api-migration api-migrate web web-build web-format web-format-check web-lint web-test web-e2e web-typecheck docs test lint format format-check quality dev docker-up docker-down clean start-api watch-api run-web start-full
 
 SOLUTION := Coordina.sln
 API_PROJECT := src/api/Coordina.Api.csproj
+API_TEST_PROJECT := tests/api/Coordina.Api.Tests.csproj
+API_POSTGRES_TEST_PROJECT := tests/api-postgres/Coordina.Api.Postgres.Tests.csproj
 API_URL := http://localhost:5050
 WEB_DIR := src/web
 DOCS_DIR := docs
@@ -22,7 +24,9 @@ help:
 	@echo "  make api-tools    Restaure les outils .NET locaux"
 	@echo "  make api-migration name=Nom  Cree une migration EF Core"
 	@echo "  make api-migrate  Applique les migrations EF Core"
-	@echo "  make api-test     Lance les tests .NET"
+	@echo "  make api-test     Lance tous les tests .NET (rapides + PostgreSQL)"
+	@echo "  make api-test-fast Lance les tests .NET en memoire"
+	@echo "  make api-test-postgres Lance les tests .NET sur PostgreSQL reel (Docker requis)"
 	@echo "  make web          Lance le front React"
 	@echo "  make web-build    Build le front React"
 	@echo "  make web-test     Lance les tests React"
@@ -67,6 +71,12 @@ api-format-check: api-restore
 
 api-test: api-restore
 	dotnet test $(SOLUTION) --configuration Release --no-restore -m:1 --collect:"XPlat Code Coverage"
+
+api-test-fast: api-restore
+	dotnet test $(API_TEST_PROJECT) --configuration Release --no-restore -m:1
+
+api-test-postgres: api-restore
+	dotnet test $(API_POSTGRES_TEST_PROJECT) --configuration Release --no-restore -m:1
 
 api-migration: api-restore api-tools
 	dotnet tool run dotnet-ef migrations add $(name) --project $(API_PROJECT) --output-dir infrastructure/persistence/Migrations --namespace Coordina.Api.Infrastructure.Persistence.Migrations
