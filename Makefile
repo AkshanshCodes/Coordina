@@ -11,7 +11,7 @@ DOCKER_COMPOSE := docker compose --env-file .env -f docker/docker-compose.yml -p
 GRAPH_ENGINE_DIR := src/graph-engine
 GRAPH_ENGINE_OUT := $(GRAPH_ENGINE_DIR)/bin
 GRAPH_ENGINE_TEST_OUT := tests/graph-engine/bin
-GRAPH_ENGINE_SOURCES := $(GRAPH_ENGINE_DIR)/src/coordina_graph_engine.cpp $(GRAPH_ENGINE_DIR)/src/critical_path.cpp $(GRAPH_ENGINE_DIR)/src/dependency_validator.cpp $(GRAPH_ENGINE_DIR)/src/graph_snapshot.cpp $(GRAPH_ENGINE_DIR)/src/graph_traversal.cpp $(GRAPH_ENGINE_DIR)/src/graph_types.cpp $(GRAPH_ENGINE_DIR)/src/native_bridge.cpp $(GRAPH_ENGINE_DIR)/src/node_analysis.cpp $(GRAPH_ENGINE_DIR)/src/planning_engine.cpp $(GRAPH_ENGINE_DIR)/src/suggestion_engine.cpp $(GRAPH_ENGINE_DIR)/src/work_planner.cpp
+GRAPH_ENGINE_SOURCES := $(GRAPH_ENGINE_DIR)/src/interop/coordina_graph_engine.cpp $(GRAPH_ENGINE_DIR)/src/interop/native_bridge.cpp $(GRAPH_ENGINE_DIR)/src/core/graph_snapshot.cpp $(GRAPH_ENGINE_DIR)/src/core/graph_types.cpp $(GRAPH_ENGINE_DIR)/src/algorithms/critical_path.cpp $(GRAPH_ENGINE_DIR)/src/algorithms/dependency_validator.cpp $(GRAPH_ENGINE_DIR)/src/algorithms/graph_traversal.cpp $(GRAPH_ENGINE_DIR)/src/algorithms/node_analysis.cpp $(GRAPH_ENGINE_DIR)/src/algorithms/suggestion_engine.cpp $(GRAPH_ENGINE_DIR)/src/algorithms/topological_order.cpp $(GRAPH_ENGINE_DIR)/src/planning/work_planner.cpp $(GRAPH_ENGINE_DIR)/src/planning/work_score.cpp
 GRAPH_ENGINE_FLAGS := -std=c++20 -O2 -fPIC -Wall -Wextra -Wpedantic -Werror -I$(GRAPH_ENGINE_DIR)/include -I$(GRAPH_ENGINE_DIR)/src
 
 help:

@@ -1,4 +1,4 @@
-#include "native_bridge.h"
+#include "interop/native_bridge.h"
 
 #include <cstdint>
 #include <limits>

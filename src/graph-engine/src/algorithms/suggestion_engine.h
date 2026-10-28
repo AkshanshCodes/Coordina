@@ -1,7 +1,7 @@
 #ifndef COORDINA_GRAPH_ENGINE_SUGGESTION_ENGINE_H
 #define COORDINA_GRAPH_ENGINE_SUGGESTION_ENGINE_H
 
-#include "graph_snapshot.h"
+#include "core/graph_snapshot.h"
 
 #include <cstddef>
 #include <vector>

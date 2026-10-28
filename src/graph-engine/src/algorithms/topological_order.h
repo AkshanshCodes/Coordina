@@ -1,7 +1,7 @@
-#ifndef COORDINA_GRAPH_ENGINE_PLANNING_ENGINE_H
-#define COORDINA_GRAPH_ENGINE_PLANNING_ENGINE_H
+#ifndef COORDINA_GRAPH_ENGINE_TOPOLOGICAL_ORDER_H
+#define COORDINA_GRAPH_ENGINE_TOPOLOGICAL_ORDER_H
 
-#include "graph_snapshot.h"
+#include "core/graph_snapshot.h"
 
 #include <vector>
 

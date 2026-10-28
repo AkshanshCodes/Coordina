@@ -111,18 +111,18 @@ The native graph engine is split by responsibility:
 
 ```text
 src/graph-engine
-├── include/coordina_graph_engine.h # Stable C ABI consumed by .NET
+├── include/coordina_graph_engine.h  # Stable C ABI consumed by .NET
 └── src
-    ├── graph_types.*              # Node and edge value types
-    ├── graph_snapshot.*           # Immutable adjacency/reverse-adjacency view
-    ├── graph_traversal.*          # Path and impacted-dependent traversal
-    ├── dependency_validator.*     # Edge validation and cycle prevention
-    ├── suggestion_engine.*        # Safe dependency target suggestions
-    ├── planning_engine.*          # Ready nodes and dependency-first ordering
-    ├── work_planner.*             # Next-task ranking: effort, assignment, context, momentum
-    ├── native_bridge.*            # ABI array conversion helpers
-    └── coordina_graph_engine.cpp  # Exported native functions
+    ├── core/                        # Node/edge types, immutable graph snapshot
+    ├── algorithms/                  # Traversal, cycle-safe validation, topological
+    │                                # order, critical path, node analysis, suggestions
+    ├── planning/                    # Next-task ranking (work_planner) and score rules (work_score)
+    └── interop/                     # C ABI exports and array conversion helpers
 ```
+
+Layers depend inward only: `core` ← `algorithms` ← `planning` ← `interop`.
+Includes are rooted at `src/graph-engine/src` (for example
+`#include "algorithms/critical_path.h"`).
 
 The web application mirrors this direction with feature folders plus shared
 contracts and infrastructure:

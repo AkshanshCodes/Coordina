@@ -1,6 +1,6 @@
-#include "suggestion_engine.h"
+#include "algorithms/suggestion_engine.h"
 
-#include "dependency_validator.h"
+#include "algorithms/dependency_validator.h"
 
 namespace coordina::graph
 {

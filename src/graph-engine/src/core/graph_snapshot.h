@@ -1,7 +1,7 @@
 #ifndef COORDINA_GRAPH_ENGINE_GRAPH_SNAPSHOT_H
 #define COORDINA_GRAPH_ENGINE_GRAPH_SNAPSHOT_H
 
-#include "graph_types.h"
+#include "core/graph_types.h"
 
 #include <unordered_map>
 #include <unordered_set>

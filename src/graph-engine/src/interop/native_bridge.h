@@ -2,9 +2,9 @@
 #define COORDINA_GRAPH_ENGINE_NATIVE_BRIDGE_H
 
 #include "coordina_graph_engine.h"
-#include "graph_snapshot.h"
-#include "node_analysis.h"
-#include "work_planner.h"
+#include "core/graph_snapshot.h"
+#include "algorithms/node_analysis.h"
+#include "planning/work_planner.h"
 
 #include <cstddef>
 #include <vector>

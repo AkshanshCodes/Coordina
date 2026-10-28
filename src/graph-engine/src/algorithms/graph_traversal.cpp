@@ -1,4 +1,4 @@
-#include "graph_traversal.h"
+#include "algorithms/graph_traversal.h"
 
 #include <stack>
 #include <unordered_set>

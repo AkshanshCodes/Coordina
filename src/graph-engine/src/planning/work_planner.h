@@ -1,7 +1,7 @@
 #ifndef COORDINA_GRAPH_ENGINE_WORK_PLANNER_H
 #define COORDINA_GRAPH_ENGINE_WORK_PLANNER_H
 
-#include "graph_snapshot.h"
+#include "core/graph_snapshot.h"
 
 #include <cstddef>
 #include <cstdint>

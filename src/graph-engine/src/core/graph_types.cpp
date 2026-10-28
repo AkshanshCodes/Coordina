@@ -1,4 +1,4 @@
-#include "graph_types.h"
+#include "core/graph_types.h"
 
 #include <functional>
 

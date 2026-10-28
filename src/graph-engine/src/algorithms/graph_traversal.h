@@ -1,7 +1,7 @@
 #ifndef COORDINA_GRAPH_ENGINE_GRAPH_TRAVERSAL_H
 #define COORDINA_GRAPH_ENGINE_GRAPH_TRAVERSAL_H
 
-#include "graph_snapshot.h"
+#include "core/graph_snapshot.h"
 
 #include <vector>
 

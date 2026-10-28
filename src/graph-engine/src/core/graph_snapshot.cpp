@@ -1,4 +1,4 @@
-#include "graph_snapshot.h"
+#include "core/graph_snapshot.h"
 
 #include <stdexcept>
 

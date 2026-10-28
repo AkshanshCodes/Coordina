@@ -2,7 +2,7 @@
 #define COORDINA_GRAPH_ENGINE_DEPENDENCY_VALIDATOR_H
 
 #include "coordina_graph_engine.h"
-#include "graph_snapshot.h"
+#include "core/graph_snapshot.h"
 
 namespace coordina::graph
 {

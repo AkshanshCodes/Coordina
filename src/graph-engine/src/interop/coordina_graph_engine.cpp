@@ -1,13 +1,13 @@
 #include "coordina_graph_engine.h"
 
-#include "critical_path.h"
-#include "dependency_validator.h"
-#include "graph_traversal.h"
-#include "native_bridge.h"
-#include "node_analysis.h"
-#include "planning_engine.h"
-#include "suggestion_engine.h"
-#include "work_planner.h"
+#include "algorithms/critical_path.h"
+#include "algorithms/dependency_validator.h"
+#include "algorithms/graph_traversal.h"
+#include "interop/native_bridge.h"
+#include "algorithms/node_analysis.h"
+#include "algorithms/topological_order.h"
+#include "algorithms/suggestion_engine.h"
+#include "planning/work_planner.h"
 
 extern "C" const char* coordina_graph_version(void)
 {

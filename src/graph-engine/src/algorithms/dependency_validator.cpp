@@ -1,6 +1,6 @@
-#include "dependency_validator.h"
+#include "algorithms/dependency_validator.h"
 
-#include "graph_traversal.h"
+#include "algorithms/graph_traversal.h"
 
 namespace coordina::graph
 {

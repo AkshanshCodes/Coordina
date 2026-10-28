@@ -1,7 +1,7 @@
-#include "node_analysis.h"
+#include "algorithms/node_analysis.h"
 
-#include "graph_traversal.h"
-#include "planning_engine.h"
+#include "algorithms/graph_traversal.h"
+#include "algorithms/topological_order.h"
 
 #include <algorithm>
 #include <unordered_map>
