@@ -128,7 +128,7 @@ contracts and infrastructure:
 
 ```text
 src/web/src
-├── features      # Product areas and UI/state owned by those areas
+├── features      # Product areas and UI/state owned by those areas (board: api/, model/, hooks/, components/)
 ├── lib           # Shared utilities and the API client
 └── types         # Shared API/domain contracts used across features
 ```

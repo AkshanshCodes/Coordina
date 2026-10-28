@@ -21,7 +21,7 @@ src/
     infrastructure/ Cross-cutting persistence and configuration
   graph-engine/   C++20 native library (critical path, planning, suggestions)
   web/            React + Vite application
-    features/      One folder per product area (auth, workspaces, projects, tasks)
+    features/      One folder per product area (auth, workspaces, projects, board)
     components/    Shared UI primitives and layout
     lib/           API client and cross-cutting helpers
 ```
@@ -67,20 +67,29 @@ and completion changes in one write.
 ## Frontend rules
 
 **Features own their state.** Each feature folder contains its API client
-(`*-api.ts`), domain hooks (`use-*.ts`), pure helpers (`*-utils.ts`), and
-components. Shared UI lives in `components/ui`; nothing in `components/` may
-import from `features/`.
+(`*-api.ts`), domain hooks (`use-*.ts`), pure helpers, and components. Shared UI
+lives in `components/ui`; nothing in `components/` may import from `features/`.
+Larger features split into `api/`, `model/`, `hooks/`, and `components/`, as
+`features/board` does.
 
 **Components render, hooks decide.** Data loading, mutations, and derived state
-live in hooks (`use-project-board`, `use-board-filters`, `use-projects`,
-`use-card-panel-form`). Components receive a view model and stay declarative.
+live in hooks (`use-board-resource`, `use-board-mutations`, `use-board-filters`,
+`use-projects`, `use-card-panel-form`). A composition hook such as
+`use-project-board` wires them together and owns only UI state. Components receive a view model and stay declarative.
 A component file that mixes fetching, business rules, and markup is a smell —
 extract the logic into a hook and the independent sections into sibling
 components.
 
-**Pure logic is separated from React.** Helpers such as `board-utils.ts` and
-`plan-insights.ts` are plain TypeScript with no React imports, which keeps them
-unit-testable without rendering.
+**Pure logic is separated from React.** Modules under `features/board/model`
+(selectors, immutable updates, card draft rules, formatting, planning insights)
+are plain TypeScript with no React imports, which keeps them unit-testable
+without rendering. Functions that depend on the current day take an optional
+`today` argument.
+
+**Async state is race-safe.** A load request that a newer one has superseded is
+ignored. A failed optimistic update restores the previous board only if nothing
+has replaced it since. A `404` on a card mutation reloads the board; only a `404`
+on the board load itself means the project has no board yet.
 
 ## Graph engine boundary
 

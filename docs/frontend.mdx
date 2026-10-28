@@ -30,3 +30,30 @@ accounts and active workspace context for returning users.
 Workspace screens use shared shadcn-style primitives: `Card`, `Button`,
 `Dialog`, `DropdownMenu`, `Input`, `Textarea`, `Badge`, `Skeleton`, `Field`,
 and `Separator`.
+
+## Board feature
+
+`src/web/src/features/board` is split by reason for change:
+
+```text
+features/board/
+  api/board-api.ts             HTTP calls only
+  model/                       pure TypeScript, no React
+    board-selectors.ts         filters, metrics, WIP alerts, card predicates
+    board-updates.ts           immutable optimistic transforms
+    card-draft.ts              card form rules: change detection, validation, labels
+    board-format.ts            display helpers
+    dates.ts, labels.ts        shared primitives
+    planning-insights.ts       plan explanations and tags
+  hooks/
+    use-board-resource.ts      board, members, graph, dependency analysis loading
+    use-board-mutations.ts     server mutations, optimistic updates, notices
+    use-card-panel-form.ts     card side panel form
+    use-dismissible-layer.ts   outside click / Escape for popovers
+    use-board-filters.ts       search and filters
+    use-project-board.ts       composition and UI state for ProjectBoard
+  components/                  rendering only
+```
+
+Workflow state comes from each list's `taskStatus`. List titles are display text
+only.
