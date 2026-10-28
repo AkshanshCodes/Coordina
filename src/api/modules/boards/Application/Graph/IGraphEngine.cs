@@ -45,4 +45,10 @@ public interface IGraphEngine<TNode>
     IReadOnlyCollection<GraphEdge<TNode>> edges,
     IReadOnlyCollection<GraphWorkItem<TNode>> workItems,
     GraphPlanningOptions? options = null);
+
+  GraphBoardAnalysis<TNode> AnalyzeBoard(
+    IReadOnlyCollection<TNode> nodes,
+    IReadOnlyCollection<GraphEdge<TNode>> edges,
+    IReadOnlyCollection<GraphWorkItem<TNode>> workItems,
+    GraphPlanningOptions? options = null);
 }

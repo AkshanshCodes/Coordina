@@ -1,4 +1,4 @@
-.PHONY: help graph-engine-build graph-engine-test api api-restore api-tools api-build api-format api-format-check api-test api-test-fast api-test-postgres api-migration api-migrate web web-build web-format web-format-check web-lint web-test web-e2e web-typecheck docs test lint format format-check quality dev docker-up docker-down clean start-api watch-api run-web start-full
+.PHONY: help graph-engine-build graph-engine-test graph-engine-benchmark graph-engine-benchmark-smoke api api-restore api-tools api-build api-format api-format-check api-test api-test-fast api-test-postgres api-migration api-migrate web web-build web-format web-format-check web-lint web-test web-e2e web-typecheck docs test lint format format-check quality dev docker-up docker-down clean start-api watch-api run-web start-full
 
 SOLUTION := Coordina.sln
 API_PROJECT := src/api/Coordina.Api.csproj
@@ -11,13 +11,14 @@ DOCKER_COMPOSE := docker compose --env-file .env -f docker/docker-compose.yml -p
 GRAPH_ENGINE_DIR := src/graph-engine
 GRAPH_ENGINE_OUT := $(GRAPH_ENGINE_DIR)/bin
 GRAPH_ENGINE_TEST_OUT := tests/graph-engine/bin
-GRAPH_ENGINE_SOURCES := $(GRAPH_ENGINE_DIR)/src/interop/coordina_graph_engine.cpp $(GRAPH_ENGINE_DIR)/src/interop/native_bridge.cpp $(GRAPH_ENGINE_DIR)/src/core/graph_snapshot.cpp $(GRAPH_ENGINE_DIR)/src/core/graph_types.cpp $(GRAPH_ENGINE_DIR)/src/algorithms/critical_path.cpp $(GRAPH_ENGINE_DIR)/src/algorithms/dependency_validator.cpp $(GRAPH_ENGINE_DIR)/src/algorithms/graph_traversal.cpp $(GRAPH_ENGINE_DIR)/src/algorithms/node_analysis.cpp $(GRAPH_ENGINE_DIR)/src/algorithms/suggestion_engine.cpp $(GRAPH_ENGINE_DIR)/src/algorithms/topological_order.cpp $(GRAPH_ENGINE_DIR)/src/planning/work_planner.cpp $(GRAPH_ENGINE_DIR)/src/planning/work_score.cpp
+GRAPH_ENGINE_SOURCES := $(GRAPH_ENGINE_DIR)/src/interop/coordina_graph_engine.cpp $(GRAPH_ENGINE_DIR)/src/interop/native_bridge.cpp $(GRAPH_ENGINE_DIR)/src/core/graph_snapshot.cpp $(GRAPH_ENGINE_DIR)/src/core/graph_types.cpp $(GRAPH_ENGINE_DIR)/src/algorithms/critical_path.cpp $(GRAPH_ENGINE_DIR)/src/algorithms/dependency_validator.cpp $(GRAPH_ENGINE_DIR)/src/algorithms/graph_traversal.cpp $(GRAPH_ENGINE_DIR)/src/algorithms/node_analysis.cpp $(GRAPH_ENGINE_DIR)/src/algorithms/suggestion_engine.cpp $(GRAPH_ENGINE_DIR)/src/algorithms/topological_order.cpp $(GRAPH_ENGINE_DIR)/src/planning/planning_analysis.cpp $(GRAPH_ENGINE_DIR)/src/planning/work_planner.cpp $(GRAPH_ENGINE_DIR)/src/planning/work_score.cpp
 GRAPH_ENGINE_FLAGS := -std=c++20 -O2 -fPIC -Wall -Wextra -Wpedantic -Werror -I$(GRAPH_ENGINE_DIR)/include -I$(GRAPH_ENGINE_DIR)/src
 
 help:
 	@echo "Commandes disponibles :"
 	@echo "  make dev          Lance l'API C# et le front React"
 	@echo "  make graph-engine-test Lance les tests natifs du moteur de graphe C++"
+	@echo "  make graph-engine-benchmark Mesure l'analyse de board native (sizes=\"100 1000\" optionnel)"
 	@echo "  make api          Lance l'API C#"
 	@echo "  make api-watch    Lance l'API C# en mode watch"
 	@echo "  make api-restore  Restaure les dependances .NET"
@@ -47,6 +48,14 @@ graph-engine-test:
 	mkdir -p $(GRAPH_ENGINE_TEST_OUT)
 	g++ $(GRAPH_ENGINE_FLAGS) tests/graph-engine/graph_engine_tests.cpp $(GRAPH_ENGINE_SOURCES) -o $(GRAPH_ENGINE_TEST_OUT)/graph_engine_tests
 	$(GRAPH_ENGINE_TEST_OUT)/graph_engine_tests
+
+graph-engine-benchmark:
+	mkdir -p $(GRAPH_ENGINE_TEST_OUT)
+	g++ $(GRAPH_ENGINE_FLAGS) tests/graph-engine/graph_engine_benchmarks.cpp $(GRAPH_ENGINE_SOURCES) -o $(GRAPH_ENGINE_TEST_OUT)/graph_engine_benchmarks
+	$(GRAPH_ENGINE_TEST_OUT)/graph_engine_benchmarks $(sizes)
+
+graph-engine-benchmark-smoke:
+	$(MAKE) graph-engine-benchmark sizes="100 1000"
 
 api: api-migrate
 	dotnet run --project $(API_PROJECT) --urls $(API_URL)
@@ -111,7 +120,7 @@ web-typecheck:
 docs:
 	cd $(DOCS_DIR) && mint dev
 
-test: graph-engine-test api-test web-test web-e2e
+test: graph-engine-test graph-engine-benchmark-smoke api-test web-test web-e2e
 
 lint: api-format-check web-lint web-typecheck
 

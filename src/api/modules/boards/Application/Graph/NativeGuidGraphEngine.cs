@@ -216,6 +216,40 @@ public sealed class NativeGuidGraphEngine : IGraphEngine<Guid>
         ToNativeCount(output.Length)));
   }
 
+  public GraphBoardAnalysis<Guid> AnalyzeBoard(
+    IReadOnlyCollection<Guid> nodes,
+    IReadOnlyCollection<GraphEdge<Guid>> edges,
+    IReadOnlyCollection<GraphWorkItem<Guid>> workItems,
+    GraphPlanningOptions? options = null)
+  {
+    ArgumentNullException.ThrowIfNull(nodes);
+    ArgumentNullException.ThrowIfNull(edges);
+    ArgumentNullException.ThrowIfNull(workItems);
+
+    var nativeNodes = ToNativeNodes(nodes);
+    var nativeEdges = ToNativeEdges(edges);
+    var nativeWorkItems = ToNativeWorkItems(workItems);
+    var nativeOptions = ToNativeOptions(options ?? GraphPlanningOptions.Default);
+    var buffers = new BoardAnalysisBuffers(nativeNodes.Length, nativeWorkItems.Length);
+
+    var status = buffers.Run((ref NativeGraphBoardAnalysis output) => NativeMethods.AnalyzeBoard(
+      nativeNodes,
+      ToNativeCount(nativeNodes.Length),
+      nativeEdges,
+      ToNativeCount(nativeEdges.Length),
+      nativeWorkItems,
+      ToNativeCount(nativeWorkItems.Length),
+      ref nativeOptions,
+      ref output));
+
+    if (status != NativeGraphStatus.Ok)
+    {
+      throw new GraphEngineException("analyze_board", (int)status);
+    }
+
+    return buffers.ToAnalysis();
+  }
+
   private static Guid[] ReadNodeCollection(
     int capacity,
     Func<NativeGraphNodeId[], UIntPtr> read)
@@ -238,15 +272,18 @@ public sealed class NativeGuidGraphEngine : IGraphEngine<Guid>
 
     return output
       .Take(checked((int)count))
-      .Select(analysis => new GraphNodeAnalysis<Guid>(
-        FromNative(analysis.Node),
-        checked((int)analysis.DependencyCount),
-        checked((int)analysis.DependentCount),
-        checked((int)analysis.DependencyDepth),
-        checked((int)analysis.DependentDepth),
-        checked((int)analysis.TransitiveDependentCount)))
+      .Select(FromNative)
       .ToArray();
   }
+
+  private static GraphNodeAnalysis<Guid> FromNative(NativeGraphNodeAnalysis analysis) =>
+    new(
+      FromNative(analysis.Node),
+      checked((int)analysis.DependencyCount),
+      checked((int)analysis.DependentCount),
+      checked((int)analysis.DependencyDepth),
+      checked((int)analysis.DependentDepth),
+      checked((int)analysis.TransitiveDependentCount));
 
   private static GraphWorkRecommendation<Guid>[] ReadWorkRecommendationCollection(
     int capacity,
@@ -257,25 +294,29 @@ public sealed class NativeGuidGraphEngine : IGraphEngine<Guid>
 
     return output
       .Take(checked((int)count))
-      .Select(recommendation => new GraphWorkRecommendation<Guid>(
-        FromNative(recommendation.Node),
-        checked((int)recommendation.Score),
-        checked((int)recommendation.BlockerCount),
-        checked((int)recommendation.UnlockScore),
-        checked((int)recommendation.UrgencyScore),
-        checked((int)recommendation.PriorityScore),
-        checked((int)recommendation.ProgressScore),
-        recommendation.IsCriticalPath != 0U,
-        recommendation.EffortScore,
-        recommendation.AssignmentScore,
-        checked((int)recommendation.MomentumScore),
-        checked((int)recommendation.ContextScore),
-        recommendation.FitsAvailableTime != 0U,
-        recommendation.IsAssignmentMatch != 0U,
-        recommendation.IsContextMatch != 0U,
-        recommendation.IsInProgress != 0U))
+      .Select(FromNative)
       .ToArray();
   }
+
+  private static GraphWorkRecommendation<Guid> FromNative(
+    NativeGraphWorkRecommendation recommendation) =>
+    new(
+      FromNative(recommendation.Node),
+      checked((int)recommendation.Score),
+      checked((int)recommendation.BlockerCount),
+      checked((int)recommendation.UnlockScore),
+      checked((int)recommendation.UrgencyScore),
+      checked((int)recommendation.PriorityScore),
+      checked((int)recommendation.ProgressScore),
+      recommendation.IsCriticalPath != 0U,
+      recommendation.EffortScore,
+      recommendation.AssignmentScore,
+      checked((int)recommendation.MomentumScore),
+      checked((int)recommendation.ContextScore),
+      recommendation.FitsAvailableTime != 0U,
+      recommendation.IsAssignmentMatch != 0U,
+      recommendation.IsContextMatch != 0U,
+      recommendation.IsInProgress != 0U);
 
   private static NativeGraphNodeId[] ToNativeNodes(
     IReadOnlyCollection<Guid> nodes) =>
@@ -391,6 +432,114 @@ public sealed class NativeGuidGraphEngine : IGraphEngine<Guid>
     uint IsAssignmentMatch,
     uint IsContextMatch,
     uint IsInProgress);
+
+  private enum NativeGraphStatus
+  {
+    Ok = 0,
+    InvalidArgument = 1,
+    InsufficientCapacity = 2
+  }
+
+  [StructLayout(LayoutKind.Sequential)]
+  private struct NativeGraphNodeBuffer
+  {
+    public IntPtr Items;
+    public UIntPtr Capacity;
+    public UIntPtr Count;
+  }
+
+  [StructLayout(LayoutKind.Sequential)]
+  private struct NativeGraphBoardAnalysis
+  {
+    public NativeGraphNodeBuffer ReadyNodes;
+    public NativeGraphNodeBuffer DependencyOrder;
+    public NativeGraphNodeBuffer CriticalPath;
+    public IntPtr NodeAnalyses;
+    public UIntPtr NodeAnalysisCapacity;
+    public UIntPtr NodeAnalysisCount;
+    public IntPtr Recommendations;
+    public UIntPtr RecommendationCapacity;
+    public UIntPtr RecommendationCount;
+    public uint IsAcyclic;
+    public uint Reserved;
+  }
+
+  private delegate NativeGraphStatus BoardAnalysisCall(ref NativeGraphBoardAnalysis output);
+
+  private sealed class BoardAnalysisBuffers(int nodeCount, int workItemCount)
+  {
+    private readonly NativeGraphNodeId[] _readyNodes = new NativeGraphNodeId[nodeCount];
+    private readonly NativeGraphNodeId[] _dependencyOrder = new NativeGraphNodeId[nodeCount];
+    private readonly NativeGraphNodeId[] _criticalPath = new NativeGraphNodeId[nodeCount];
+    private readonly NativeGraphNodeAnalysis[] _nodeAnalyses = new NativeGraphNodeAnalysis[nodeCount];
+    private readonly NativeGraphWorkRecommendation[] _recommendations =
+      new NativeGraphWorkRecommendation[workItemCount];
+    private NativeGraphBoardAnalysis _output;
+
+    public NativeGraphStatus Run(BoardAnalysisCall call)
+    {
+      var handles = new[]
+      {
+        GCHandle.Alloc(_readyNodes, GCHandleType.Pinned),
+        GCHandle.Alloc(_dependencyOrder, GCHandleType.Pinned),
+        GCHandle.Alloc(_criticalPath, GCHandleType.Pinned),
+        GCHandle.Alloc(_nodeAnalyses, GCHandleType.Pinned),
+        GCHandle.Alloc(_recommendations, GCHandleType.Pinned)
+      };
+
+      try
+      {
+        _output = new NativeGraphBoardAnalysis
+        {
+          ReadyNodes = Buffer(handles[0], _readyNodes.Length),
+          DependencyOrder = Buffer(handles[1], _dependencyOrder.Length),
+          CriticalPath = Buffer(handles[2], _criticalPath.Length),
+          NodeAnalyses = handles[3].AddrOfPinnedObject(),
+          NodeAnalysisCapacity = ToNativeCount(_nodeAnalyses.Length),
+          Recommendations = handles[4].AddrOfPinnedObject(),
+          RecommendationCapacity = ToNativeCount(_recommendations.Length)
+        };
+
+        return call(ref _output);
+      }
+      finally
+      {
+        foreach (var handle in handles)
+        {
+          handle.Free();
+        }
+      }
+    }
+
+    public GraphBoardAnalysis<Guid> ToAnalysis() =>
+      new(
+        _output.IsAcyclic != 0U,
+        Take(_readyNodes, _output.ReadyNodes.Count).Select(FromNative).ToArray(),
+        Take(_dependencyOrder, _output.DependencyOrder.Count).Select(FromNative).ToArray(),
+        Take(_criticalPath, _output.CriticalPath.Count).Select(FromNative).ToArray(),
+        Take(_nodeAnalyses, _output.NodeAnalysisCount).Select(FromNative).ToArray(),
+        Take(_recommendations, _output.RecommendationCount).Select(FromNative).ToArray());
+
+    private static NativeGraphNodeBuffer Buffer(GCHandle handle, int capacity) =>
+      new()
+      {
+        Items = handle.AddrOfPinnedObject(),
+        Capacity = ToNativeCount(capacity)
+      };
+
+    private static IEnumerable<T> Take<T>(T[] buffer, UIntPtr count)
+    {
+      var written = checked((int)count.ToUInt64());
+
+      if (written > buffer.Length)
+      {
+        throw new GraphEngineException(
+          $"Native graph engine reported {written} items for a buffer of {buffer.Length}.");
+      }
+
+      return buffer.Take(written);
+    }
+  }
 
   private static partial class NativeMethods
   {
@@ -511,5 +660,19 @@ public sealed class NativeGuidGraphEngine : IGraphEngine<Guid>
       [Out]
       NativeGraphWorkRecommendation[] output,
       UIntPtr outputCapacity);
+
+    [DllImport(
+      LibraryName,
+      EntryPoint = "coordina_graph_analyze_board",
+      CallingConvention = CallingConvention.Cdecl)]
+    internal static extern NativeGraphStatus AnalyzeBoard(
+      NativeGraphNodeId[] nodes,
+      UIntPtr nodeCount,
+      NativeGraphEdge[] edges,
+      UIntPtr edgeCount,
+      NativeGraphWorkItem[] workItems,
+      UIntPtr workItemCount,
+      ref NativeGraphPlanningOptions options,
+      ref NativeGraphBoardAnalysis output);
   }
 }

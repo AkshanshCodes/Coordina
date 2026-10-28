@@ -10,8 +10,13 @@ namespace coordina::graph
 std::vector<NodeId> critical_path(
   const GraphSnapshot& graph)
 {
-  const auto ordered = dependency_first_topological_order(graph);
+  return critical_path(graph, dependency_first_topological_order(graph));
+}
 
+std::vector<NodeId> critical_path(
+  const GraphSnapshot& graph,
+  const std::vector<NodeId>& ordered)
+{
   if (ordered.empty())
   {
     return {};

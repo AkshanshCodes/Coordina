@@ -96,6 +96,42 @@ typedef enum coordina_graph_edge_status
   COORDINA_GRAPH_EDGE_INVALID_ARGUMENT = 100
 } coordina_graph_edge_status;
 
+typedef enum coordina_graph_status
+{
+  COORDINA_GRAPH_OK = 0,
+  COORDINA_GRAPH_INVALID_ARGUMENT = 1,
+  COORDINA_GRAPH_INSUFFICIENT_CAPACITY = 2
+} coordina_graph_status;
+
+typedef struct coordina_graph_node_buffer
+{
+  coordina_graph_node_id* items;
+  size_t capacity;
+  size_t count;
+} coordina_graph_node_buffer;
+
+/*
+ * Output of coordina_graph_analyze_board. The caller owns every buffer and sets
+ * each capacity. On return every count holds the number of items the engine
+ * produced. If any capacity is too small the call returns
+ * COORDINA_GRAPH_INSUFFICIENT_CAPACITY and writes no item, so the caller can
+ * retry with the reported counts.
+ */
+typedef struct coordina_graph_board_analysis
+{
+  coordina_graph_node_buffer ready_nodes;
+  coordina_graph_node_buffer dependency_order;
+  coordina_graph_node_buffer critical_path;
+  coordina_graph_node_analysis* node_analyses;
+  size_t node_analysis_capacity;
+  size_t node_analysis_count;
+  coordina_graph_work_recommendation* recommendations;
+  size_t recommendation_capacity;
+  size_t recommendation_count;
+  uint32_t is_acyclic;
+  uint32_t reserved;
+} coordina_graph_board_analysis;
+
 COORDINA_GRAPH_EXPORT const char* coordina_graph_version(void);
 
 COORDINA_GRAPH_EXPORT coordina_graph_edge_status coordina_graph_evaluate_edge(
@@ -180,6 +216,21 @@ COORDINA_GRAPH_EXPORT size_t coordina_graph_plan_work(
   const coordina_graph_planning_options* options,
   coordina_graph_work_recommendation* output,
   size_t output_capacity);
+
+/*
+ * Builds the graph once and returns everything the board planning view needs:
+ * acyclicity, ready nodes, dependency order, critical path, node analyses, and
+ * work recommendations. Results match the individual functions above.
+ */
+COORDINA_GRAPH_EXPORT coordina_graph_status coordina_graph_analyze_board(
+  const coordina_graph_node_id* nodes,
+  size_t node_count,
+  const coordina_graph_edge* edges,
+  size_t edge_count,
+  const coordina_graph_work_item* work_items,
+  size_t work_item_count,
+  const coordina_graph_planning_options* options,
+  coordina_graph_board_analysis* output);
 
 #ifdef __cplusplus
 }

@@ -116,11 +116,17 @@ src/graph-engine
     ├── core/                        # Node/edge types, immutable graph snapshot
     ├── algorithms/                  # Traversal, cycle-safe validation, topological
     │                                # order, critical path, node analysis, suggestions
-    ├── planning/                    # Next-task ranking (work_planner) and score rules (work_score)
+    ├── planning/                    # Shared board analysis (planning_analysis), next-task
+    │                                # ranking (work_planner), score rules (work_score)
     └── interop/                     # C ABI exports and array conversion helpers
 ```
 
 Layers depend inward only: `core` ← `algorithms` ← `planning` ← `interop`.
+The board planning view uses one native call, `coordina_graph_analyze_board`,
+which builds the graph once and returns readiness, dependency order, critical
+path, node analyses, and ranked work together. It reports an explicit status
+(`OK`, `INVALID_ARGUMENT`, `INSUFFICIENT_CAPACITY`) separately from output
+counts. `make graph-engine-benchmark` compares it with the individual calls.
 Includes are rooted at `src/graph-engine/src` (for example
 `#include "algorithms/critical_path.h"`).
 
@@ -233,6 +239,7 @@ The Makefile is the main local interface.
 | Command | Purpose |
 | --- | --- |
 | `make graph-engine-test` | Build and run the native C++ graph engine tests |
+| `make graph-engine-benchmark` | Benchmark native board analysis (individual calls vs batch) |
 | `make dev` | Run API watcher and web dev server together |
 | `make api` | Apply migrations and run the API |
 | `make web` | Run the Vite dev server |

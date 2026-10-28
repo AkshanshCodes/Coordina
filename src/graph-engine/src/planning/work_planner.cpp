@@ -1,7 +1,6 @@
 #include "planning/work_planner.h"
 
-#include "algorithms/critical_path.h"
-#include "algorithms/node_analysis.h"
+#include "planning/planning_analysis.h"
 #include "planning/work_score.h"
 
 #include <algorithm>
@@ -59,7 +58,16 @@ std::vector<WorkRecommendation> plan_work(
   const std::vector<WorkItem>& work_items,
   const PlanningOptions& options)
 {
-  const auto analyses = analyze_nodes(graph);
+  return plan_work(graph, work_items, options, analyze_planning(graph));
+}
+
+std::vector<WorkRecommendation> plan_work(
+  const GraphSnapshot& graph,
+  const std::vector<WorkItem>& work_items,
+  const PlanningOptions& options,
+  const PlanningAnalysis& analysis)
+{
+  const auto& analyses = analysis.node_analyses;
 
   if (analyses.size() != graph.nodes().size())
   {
@@ -74,7 +82,7 @@ std::vector<WorkRecommendation> plan_work(
     analyses_by_node.emplace(analysis.node, analysis);
   }
 
-  const auto critical = critical_path(graph);
+  const auto& critical = analysis.critical_path;
   std::unordered_set<NodeId, NodeHash> critical_nodes;
   critical_nodes.reserve(critical.size());
 

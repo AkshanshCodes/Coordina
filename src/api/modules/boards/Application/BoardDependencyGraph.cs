@@ -36,31 +36,27 @@ internal static class BoardDependencyGraph
 
     var graph = ToGraph(board);
     var cardsById = graph.Cards.ToDictionary(card => card.Id);
-    var nodeAnalyses = graphEngine
-      .AnalyzeNodes(graph.Nodes, graph.Edges)
-      .ToDictionary(analysis => analysis.Node);
-    var criticalPathIds = graphEngine
-      .FindCriticalPath(graph.Nodes, graph.Edges)
-      .ToArray();
-    var criticalPathIdSet = criticalPathIds.ToHashSet();
-    var unblockedCards = graph.Cards
-      .Where(card => IsUnblocked(card, cardsById))
-      .ToArray();
     var today = DateOnly.FromDateTime(DateTimeOffset.UtcNow.UtcDateTime);
     var inProgressListIds = board.Lists
       .Where(list => list.TaskStatus == BoardTaskStatus.InProgress)
       .Select(list => list.Id)
       .ToHashSet();
+    var analysis = graphEngine.AnalyzeBoard(
+      graph.Nodes,
+      graph.Edges,
+      ToWorkItems(graph.Cards, today, inProgressListIds, preferences),
+      new GraphPlanningOptions(
+        preferences.AvailableMinutes,
+        preferences.PreferAssigned,
+        preferences.IncludeUnassigned));
+    var nodeAnalyses = analysis.NodeAnalyses
+      .ToDictionary(nodeAnalysis => nodeAnalysis.Node);
+    var criticalPathIdSet = analysis.CriticalPath.ToHashSet();
+    var unblockedCards = graph.Cards
+      .Where(card => IsUnblocked(card, cardsById))
+      .ToArray();
     var planItems = MarkShortestAlternative(
-      graphEngine
-        .PlanWork(
-          graph.Nodes,
-          graph.Edges,
-          ToWorkItems(graph.Cards, today, inProgressListIds, preferences),
-          new GraphPlanningOptions(
-            preferences.AvailableMinutes,
-            preferences.PreferAssigned,
-            preferences.IncludeUnassigned))
+      analysis.Recommendations
         .Select(recommendation => cardsById.TryGetValue(
           recommendation.Node,
           out var card)
@@ -77,15 +73,11 @@ internal static class BoardDependencyGraph
 
     return new BoardGraphAnalysis(
       board.Id,
-      graphEngine.IsAcyclic(graph.Nodes, graph.Edges),
-      ToCards(
-        graphEngine.FindReadyNodes(graph.Nodes, graph.Edges),
-        cardsById),
+      analysis.IsAcyclic,
+      ToCards(analysis.ReadyNodes, cardsById),
       unblockedCards,
-      ToCards(
-        graphEngine.SortTopologically(graph.Nodes, graph.Edges),
-        cardsById),
-      ToCards(criticalPathIds, cardsById),
+      ToCards(analysis.DependencyOrder, cardsById),
+      ToCards(analysis.CriticalPath, cardsById),
       planItems
         .Where(item => item.IsActionable)
         .Select(item => item.Card)

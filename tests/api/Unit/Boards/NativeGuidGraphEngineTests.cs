@@ -267,4 +267,56 @@ public sealed class NativeGuidGraphEngineTests
     Assert.All(recommendations, item => Assert.True(item.FitsAvailableTime));
     Assert.All(recommendations, item => Assert.False(item.IsCriticalPath));
   }
+
+  [Fact]
+  public void AnalyzeBoard_MatchesIndividualCalls()
+  {
+    var foundation = Guid.NewGuid();
+    var api = Guid.NewGuid();
+    var ui = Guid.NewGuid();
+    var docs = Guid.NewGuid();
+    Guid[] nodes = [foundation, api, ui, docs];
+    GraphEdge<Guid>[] edges =
+    [
+      new(api, foundation),
+      new(ui, api)
+    ];
+    GraphWorkItem<Guid>[] items =
+    [
+      new(foundation, false, 1, 3, 0, 0, 0, EstimatedMinutes: 30),
+      new(api, false, 3, 1, 2, 1, 1, EstimatedMinutes: 120),
+      new(ui, false, 2, GraphWorkItem<Guid>.NoDueDate, 0, 0, 2),
+      new(docs, false, 0, GraphWorkItem<Guid>.NoDueDate, 0, 0, 3,
+        Assignment: GraphAssignment.Requester)
+    ];
+    var options = new GraphPlanningOptions(AvailableMinutes: 60);
+
+    var analysis = _graphEngine.AnalyzeBoard(nodes, edges, items, options);
+
+    Assert.Equal(_graphEngine.IsAcyclic(nodes, edges), analysis.IsAcyclic);
+    Assert.Equal(_graphEngine.FindReadyNodes(nodes, edges), analysis.ReadyNodes);
+    Assert.Equal(_graphEngine.SortTopologically(nodes, edges), analysis.DependencyOrder);
+    Assert.Equal(_graphEngine.FindCriticalPath(nodes, edges), analysis.CriticalPath);
+    Assert.Equal(_graphEngine.AnalyzeNodes(nodes, edges), analysis.NodeAnalyses);
+    Assert.Equal(_graphEngine.PlanWork(nodes, edges, items, options), analysis.Recommendations);
+  }
+
+  [Fact]
+  public void AnalyzeBoard_ReportsCyclesWithoutPlan()
+  {
+    var first = Guid.NewGuid();
+    var second = Guid.NewGuid();
+
+    var analysis = _graphEngine.AnalyzeBoard(
+      [first, second],
+      [new GraphEdge<Guid>(first, second), new GraphEdge<Guid>(second, first)],
+      [
+        new GraphWorkItem<Guid>(first, false, 0, GraphWorkItem<Guid>.NoDueDate, 0, 0, 0),
+        new GraphWorkItem<Guid>(second, false, 0, GraphWorkItem<Guid>.NoDueDate, 0, 0, 1)
+      ]);
+
+    Assert.False(analysis.IsAcyclic);
+    Assert.Empty(analysis.DependencyOrder);
+    Assert.Empty(analysis.Recommendations);
+  }
 }

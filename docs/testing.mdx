@@ -14,6 +14,31 @@ make web-typecheck
 make web-lint
 ```
 
+## Graph engine benchmark
+
+`make graph-engine-benchmark` builds deterministic sparse dependency graphs and
+measures a full board analysis two ways: the six individual native calls the API
+used to make, and the single `coordina_graph_analyze_board` call it makes now. It
+also checks that both produce the same ranking and fails if they differ.
+`make test` runs a smoke pass at 100 and 1,000 nodes. There is no timing
+threshold, so a slow CI runner cannot fail the build.
+
+Pass `sizes="100 500"` to choose graph sizes.
+
+Median timings recorded on a development laptop (`-O2`). Use them for relative
+comparison only:
+
+| Nodes | Before: individual calls | After: individual calls | After: batch call |
+| --- | --- | --- | --- |
+| 100 | 0.62 ms | 0.47 ms | 0.14 ms |
+| 1,000 | 8.1 ms | 5.1 ms | 0.82 ms |
+| 10,000 | 188 ms | 61 ms | 31 ms |
+
+The batch call builds the graph snapshot and topological order once and reuses
+them. Transitive dependent counts use one backward pass over the topological
+order with per-node bitsets, instead of a traversal per node. Graphs larger than
+16,384 nodes fall back to traversal to bound memory.
+
 ## API test suites
 
 | Suite | Command | What it exercises |

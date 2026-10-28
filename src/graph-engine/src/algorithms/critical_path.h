@@ -9,6 +9,10 @@ namespace coordina::graph
 {
 std::vector<NodeId> critical_path(
   const GraphSnapshot& graph);
+
+std::vector<NodeId> critical_path(
+  const GraphSnapshot& graph,
+  const std::vector<NodeId>& dependency_order);
 }
 
 #endif

@@ -20,6 +20,10 @@ struct NodeAnalysis
 
 std::vector<NodeAnalysis> analyze_nodes(
   const GraphSnapshot& graph);
+
+std::vector<NodeAnalysis> analyze_nodes(
+  const GraphSnapshot& graph,
+  const std::vector<NodeId>& dependency_order);
 }
 
 #endif

@@ -59,10 +59,18 @@ struct WorkRecommendation
   std::int64_t rank_score = 0;
 };
 
+struct PlanningAnalysis;
+
 std::vector<WorkRecommendation> plan_work(
   const GraphSnapshot& graph,
   const std::vector<WorkItem>& work_items,
   const PlanningOptions& options = {});
+
+std::vector<WorkRecommendation> plan_work(
+  const GraphSnapshot& graph,
+  const std::vector<WorkItem>& work_items,
+  const PlanningOptions& options,
+  const PlanningAnalysis& analysis);
 }
 
 #endif
