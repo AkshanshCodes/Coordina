@@ -2,6 +2,7 @@ using Coordina.Api.Infrastructure.Persistence;
 using Coordina.Api.Modules.Workspaces.Application;
 using Coordina.Api.Modules.Workspaces.Domain;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace Coordina.Api.Modules.Workspaces.Infrastructure;
 
@@ -204,21 +205,24 @@ public sealed class PostgresWorkspaceStore(CoordinaDbContext dbContext)
       .SingleOrDefaultAsync(cancellationToken);
   }
 
-  public async Task<Workspace> ConsumeInviteAsync(
+  public async Task<ConsumeInviteOutcome> ConsumeInviteAsync(
     Guid inviteId,
     Guid userId,
     DateTimeOffset consumedAt,
     CancellationToken cancellationToken)
   {
-    var invite = await dbContext.WorkspaceInvites
-      .AsNoTracking()
-      .SingleOrDefaultAsync(invite => invite.Id == inviteId,
-        cancellationToken);
+    var workspaceId = await dbContext.WorkspaceInvites
+      .Where(invite => invite.Id == inviteId)
+      .Select(invite => (Guid?)invite.WorkspaceId)
+      .SingleOrDefaultAsync(cancellationToken);
 
-    if (invite is null)
+    if (workspaceId is null)
     {
-      throw new InvalidOperationException("Invitation code is no longer usable.");
+      return new ConsumeInviteOutcome(ConsumeInviteStatus.Unavailable);
     }
+
+    await using var transaction = await dbContext.Database
+      .BeginTransactionAsync(cancellationToken);
 
     var consumed = await dbContext.WorkspaceInvites
       .Where(candidate => candidate.Id == inviteId
@@ -231,27 +235,42 @@ public sealed class PostgresWorkspaceStore(CoordinaDbContext dbContext)
 
     if (consumed == 0)
     {
-      throw new InvalidOperationException("Invitation code is no longer usable.");
+      await transaction.RollbackAsync(cancellationToken);
+      return new ConsumeInviteOutcome(ConsumeInviteStatus.Unavailable);
     }
 
     dbContext.WorkspaceMembers.Add(new WorkspaceMemberEntity
     {
       Id = Guid.NewGuid(),
-      WorkspaceId = invite.WorkspaceId,
+      WorkspaceId = workspaceId.Value,
       UserId = userId,
       Role = WorkspaceRole.Member,
       JoinedAt = consumedAt
     });
 
-    await dbContext.SaveChangesAsync(cancellationToken);
+    try
+    {
+      await dbContext.SaveChangesAsync(cancellationToken);
+    }
+    catch (DbUpdateException exception)
+      when (exception.InnerException is PostgresException
+      {
+        SqlState: PostgresErrorCodes.UniqueViolation
+      })
+    {
+      await transaction.RollbackAsync(cancellationToken);
+      dbContext.ChangeTracker.Clear();
+      return new ConsumeInviteOutcome(ConsumeInviteStatus.AlreadyMember);
+    }
+
+    await transaction.CommitAsync(cancellationToken);
 
     var workspace = await FindForUserAsync(
-      invite.WorkspaceId,
+      workspaceId.Value,
       userId,
       cancellationToken);
 
-    return workspace ?? throw new InvalidOperationException(
-      "Workspace membership was not created.");
+    return new ConsumeInviteOutcome(ConsumeInviteStatus.Consumed, workspace);
   }
 
   public async Task<bool> RemoveMemberAsync(

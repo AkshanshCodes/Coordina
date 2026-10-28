@@ -104,15 +104,24 @@ public sealed class WorkspaceService(IWorkspaceStore workspaces)
         Message: "You already belong to this workspace.");
     }
 
-    var joinedWorkspace = await workspaces.ConsumeInviteAsync(
+    var outcome = await workspaces.ConsumeInviteAsync(
       invite.Id,
       userId,
       DateTimeOffset.UtcNow,
       cancellationToken);
 
-    return new WorkspaceResult<WorkspaceResponse>(
-      WorkspaceResultStatus.Success,
-      ToResponse(joinedWorkspace));
+    return outcome.Status switch
+    {
+      ConsumeInviteStatus.Consumed => new WorkspaceResult<WorkspaceResponse>(
+        WorkspaceResultStatus.Success,
+        ToResponse(outcome.Workspace!)),
+      ConsumeInviteStatus.AlreadyMember => new WorkspaceResult<WorkspaceResponse>(
+        WorkspaceResultStatus.Conflict,
+        Message: "You already belong to this workspace."),
+      _ => new WorkspaceResult<WorkspaceResponse>(
+        WorkspaceResultStatus.NotFound,
+        Message: "Invitation code is invalid or has already been used.")
+    };
   }
 
   public async Task<WorkspaceResult<CreateWorkspaceInviteResponse>> CreateInviteAsync(

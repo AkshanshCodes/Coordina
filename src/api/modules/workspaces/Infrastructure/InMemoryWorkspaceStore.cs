@@ -10,6 +10,7 @@ public sealed class InMemoryWorkspaceStore : IWorkspaceStore
   private readonly ConcurrentDictionary<(Guid WorkspaceId, Guid UserId), WorkspaceRole>
     _memberships = new();
   private readonly ConcurrentDictionary<Guid, InviteRecord> _invites = new();
+  private readonly Lock _inviteLock = new();
 
   public Task<Workspace> CreateAsync(
     string name,
@@ -157,7 +158,7 @@ public sealed class InMemoryWorkspaceStore : IWorkspaceStore
     return Task.FromResult(invite is null ? null : ToInvite(invite));
   }
 
-  public Task<Workspace> ConsumeInviteAsync(
+  public Task<ConsumeInviteOutcome> ConsumeInviteAsync(
     Guid inviteId,
     Guid userId,
     DateTimeOffset consumedAt,
@@ -165,18 +166,28 @@ public sealed class InMemoryWorkspaceStore : IWorkspaceStore
   {
     cancellationToken.ThrowIfCancellationRequested();
 
-    if (!_invites.TryGetValue(inviteId, out var invite)
-      || invite.ConsumedAt is not null
-      || invite.ExpiresAt <= consumedAt)
+    lock (_inviteLock)
     {
-      throw new InvalidOperationException("Invitation code is no longer usable.");
+      if (!_invites.TryGetValue(inviteId, out var invite)
+        || invite.ConsumedAt is not null
+        || invite.ExpiresAt <= consumedAt)
+      {
+        return Task.FromResult(
+          new ConsumeInviteOutcome(ConsumeInviteStatus.Unavailable));
+      }
+
+      if (!_memberships.TryAdd((invite.WorkspaceId, userId), WorkspaceRole.Member))
+      {
+        return Task.FromResult(
+          new ConsumeInviteOutcome(ConsumeInviteStatus.AlreadyMember));
+      }
+
+      _invites[inviteId] = invite with { ConsumedAt = consumedAt };
+
+      return Task.FromResult(new ConsumeInviteOutcome(
+        ConsumeInviteStatus.Consumed,
+        ToWorkspace(_workspaces[invite.WorkspaceId], WorkspaceRole.Member)));
     }
-
-    _invites[inviteId] = invite with { ConsumedAt = consumedAt };
-    _memberships.TryAdd((invite.WorkspaceId, userId), WorkspaceRole.Member);
-
-    return Task.FromResult(
-      ToWorkspace(_workspaces[invite.WorkspaceId], WorkspaceRole.Member));
   }
 
   public Task<bool> RemoveMemberAsync(

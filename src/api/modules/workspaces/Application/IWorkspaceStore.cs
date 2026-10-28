@@ -51,7 +51,7 @@ public interface IWorkspaceStore
     DateTimeOffset now,
     CancellationToken cancellationToken);
 
-  Task<Workspace> ConsumeInviteAsync(
+  Task<ConsumeInviteOutcome> ConsumeInviteAsync(
     Guid inviteId,
     Guid userId,
     DateTimeOffset consumedAt,
@@ -64,3 +64,14 @@ public interface IWorkspaceStore
 
   Task DeleteAsync(Guid workspaceId, CancellationToken cancellationToken);
 }
+
+public enum ConsumeInviteStatus
+{
+  Consumed,
+  Unavailable,
+  AlreadyMember
+}
+
+public sealed record ConsumeInviteOutcome(
+  ConsumeInviteStatus Status,
+  Workspace? Workspace = null);

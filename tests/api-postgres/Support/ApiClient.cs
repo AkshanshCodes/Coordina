@@ -5,7 +5,7 @@ namespace Coordina.Api.Postgres.Tests.Support;
 
 public sealed class ApiClient(HttpClient client)
 {
-  public async Task<string> RegisterAsync()
+  public async Task<TestUser> RegisterAsync()
   {
     var response = await client.PostAsJsonAsync("/auth/register", new
     {
@@ -19,7 +19,7 @@ public sealed class ApiClient(HttpClient client)
     var payload = await response.Content.ReadFromJsonAsync<AuthResponse>();
     Assert.NotNull(payload);
 
-    return payload.AccessToken;
+    return new TestUser(payload.AccessToken, payload.User.Id);
   }
 
   public async Task<HttpResponseMessage> SendAsync(
@@ -56,5 +56,9 @@ public sealed class ApiClient(HttpClient client)
     return payload;
   }
 
-  private sealed record AuthResponse(string AccessToken);
+  private sealed record AuthResponse(string AccessToken, UserResponse User);
+
+  private sealed record UserResponse(Guid Id);
 }
+
+public sealed record TestUser(string AccessToken, Guid Id);
