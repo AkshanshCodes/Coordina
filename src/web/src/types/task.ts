@@ -15,6 +15,8 @@ export type BoardTemplateDefinition = {
 
 export type BoardCardPriority = "LOW" | "MEDIUM" | "HIGH"
 
+export type BoardTaskStatus = "TODO" | "IN_PROGRESS" | "DONE"
+
 export type Board = {
   id: string
   projectId: string
@@ -30,6 +32,7 @@ export type BoardList = {
   boardId: string
   title: string
   position: number
+  taskStatus: BoardTaskStatus
   createdAt: string
   updatedAt: string
   cards: BoardCard[]

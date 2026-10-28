@@ -11,7 +11,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { isActiveWorkListTitle } from "@/features/tasks/board-utils"
+import { isActiveWorkList } from "@/features/tasks/board-utils"
 import { BoardFilterMenu } from "@/features/tasks/components/board-filter-menu"
 import { BoardFocusTabs } from "@/features/tasks/components/board-focus-tabs"
 import { BoardListColumn } from "@/features/tasks/components/board-list-column"
@@ -244,7 +244,7 @@ export function ProjectBoard({ project, workspace }: ProjectBoardProps) {
         {filteredBoard?.lists.map((list) => {
           const sourceList = board.lists.find((item) => item.id === list.id)
           const totalCardCount = sourceList?.cards.length ?? list.cards.length
-          const wipLimit = isActiveWorkListTitle(list.title) ? 5 : undefined
+          const wipLimit = isActiveWorkList(list) ? 5 : undefined
 
           return (
             <BoardListColumn

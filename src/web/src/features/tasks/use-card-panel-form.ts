@@ -210,6 +210,7 @@ export function useCardPanelForm({
       setSaveState("saved")
       window.setTimeout(() => setSaveState("idle"), 1400)
     } catch {
+      setIsCompleted(currentCard.isCompleted)
       setSaveState("idle")
     }
   }

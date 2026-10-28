@@ -1,4 +1,9 @@
-import type { Board, BoardCard, BoardCardPriority } from "@/types/task"
+import type {
+  Board,
+  BoardCard,
+  BoardCardPriority,
+  BoardList,
+} from "@/types/task"
 
 export type BoardFocus = "all" | "mine" | "risk" | "due-soon" | "unassigned"
 
@@ -85,12 +90,10 @@ export function getBoardMetrics(board: Board | null): BoardMetrics {
   }
 
   for (const list of board.lists) {
-    const isCompletedList = isDoneListTitle(list.title)
-
     for (const card of list.cards) {
       const isBlocked = isBlockedCard(card)
       const isOverdue = isCardOverdue(card)
-      const isCompleted = card.isCompleted || isCompletedList
+      const isCompleted = card.isCompleted
 
       metrics.total += 1
 
@@ -143,7 +146,7 @@ export function getWipAlerts(board: Board | null, limit = 5): WipAlert[] {
   }
 
   return board.lists
-    .filter((list) => isActiveWorkListTitle(list.title))
+    .filter(isActiveWorkList)
     .filter((list) => list.cards.length > limit)
     .map((list) => ({
       count: list.cards.length,
@@ -301,21 +304,8 @@ export function isBlockedCard(card: BoardCard) {
   )
 }
 
-export function isDoneListTitle(title: string) {
-  return ["done", "complete", "shipped", "released", "fixed", "closed"].some(
-    (token) => title.toLowerCase().includes(token)
-  )
-}
-
-export function isActiveWorkListTitle(title: string) {
-  const normalized = title.toLowerCase()
-
-  return (
-    !isDoneListTitle(normalized) &&
-    !["backlog", "ideas", "todo", "to do", "reported"].some((token) =>
-      normalized.includes(token)
-    )
-  )
+export function isActiveWorkList(list: Pick<BoardList, "taskStatus">) {
+  return list.taskStatus === "IN_PROGRESS"
 }
 
 export function normalizeLabels(labels: string[]) {
