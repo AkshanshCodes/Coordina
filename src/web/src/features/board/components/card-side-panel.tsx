@@ -19,7 +19,7 @@ import {
   formatDateTime,
   initials,
   userLabel,
-} from "@/features/board/board-utils"
+} from "@/features/board/model/board-format"
 import { CardCommentsSection } from "@/features/board/components/card-comments-section"
 import { CardDependenciesSection } from "@/features/board/components/card-dependencies-section"
 import { CardDetailsFields } from "@/features/board/components/card-details-fields"

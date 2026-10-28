@@ -5,8 +5,8 @@ import {
   normalizeLabels,
   sameLabels,
   sameStrings,
-  todayDateKey,
-} from "@/features/board/board-utils"
+} from "@/features/board/model/labels"
+import { todayDateKey } from "@/features/board/model/dates"
 import type { BoardCard, BoardCardInput, BoardCardPriority } from "@/types/task"
 
 type UseCardPanelFormOptions = {

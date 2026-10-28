@@ -11,11 +11,8 @@ import {
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { boardCardPriorities } from "@/features/board/model/board-constants"
-import {
-  panelLabelClass,
-  shortDate,
-  todayDateKey,
-} from "@/features/board/board-utils"
+import { panelLabelClass, shortDate } from "@/features/board/model/board-format"
+import { todayDateKey } from "@/features/board/model/dates"
 import type { CardPanelForm } from "@/features/board/hooks/use-card-panel-form"
 
 type CardDetailsFieldsProps = {

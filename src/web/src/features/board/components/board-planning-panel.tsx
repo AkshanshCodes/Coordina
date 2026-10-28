@@ -8,7 +8,10 @@ import {
   WarningCircle,
 } from "@phosphor-icons/react"
 
-import type { BoardMetrics, WipAlert } from "@/features/board/board-utils"
+import type {
+  BoardMetrics,
+  WipAlert,
+} from "@/features/board/model/board-selectors"
 import {
   type PlanTone,
   getPlanExplanation,

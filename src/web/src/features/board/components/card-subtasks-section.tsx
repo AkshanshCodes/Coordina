@@ -2,7 +2,7 @@ import { Plus, X } from "@phosphor-icons/react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { userLabel } from "@/features/board/board-utils"
+import { userLabel } from "@/features/board/model/board-format"
 import type { BoardCard, BoardCardSubtask } from "@/types/task"
 
 type CardSubtasksSectionProps = {

@@ -9,10 +9,12 @@ import {
   getBoardLabels,
   getBoardMetrics,
   getWipAlerts,
+} from "@/features/board/model/board-selectors"
+import {
   moveCardInBoard,
   removeCardFromBoard,
   renameListInBoard,
-} from "@/features/board/board-utils"
+} from "@/features/board/model/board-updates"
 import {
   addCardComment,
   addCardDependency,

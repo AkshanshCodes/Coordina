@@ -6,7 +6,7 @@ import {
   formatDateTime,
   initials,
   userLabel,
-} from "@/features/board/board-utils"
+} from "@/features/board/model/board-format"
 import type { BoardCard } from "@/types/task"
 
 type CardCommentsSectionProps = {
