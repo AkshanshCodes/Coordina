@@ -27,10 +27,12 @@ internal static class BoardDependencyGraph
 
   public static BoardGraphAnalysis AnalyzeBoard(
     IGraphEngine<Guid> graphEngine,
-    ProjectBoard board)
+    ProjectBoard board,
+    BoardPlanningPreferences preferences)
   {
     ArgumentNullException.ThrowIfNull(graphEngine);
     ArgumentNullException.ThrowIfNull(board);
+    ArgumentNullException.ThrowIfNull(preferences);
 
     var graph = ToGraph(board);
     var cardsById = graph.Cards.ToDictionary(card => card.Id);
@@ -45,19 +47,33 @@ internal static class BoardDependencyGraph
       .Where(card => IsUnblocked(card, cardsById))
       .ToArray();
     var today = DateOnly.FromDateTime(DateTimeOffset.UtcNow.UtcDateTime);
-    var planItems = graphEngine
-      .PlanWork(graph.Nodes, graph.Edges, ToWorkItems(graph.Cards, today))
-      .Select(recommendation => cardsById.TryGetValue(
-        recommendation.Node,
-        out var card)
-          ? ToBoardWorkRecommendation(
-            card,
-            recommendation,
-            FindNodeAnalysis(nodeAnalyses, card.Id),
-            today)
-          : null)
-      .OfType<BoardWorkRecommendation>()
-      .ToArray();
+    var inProgressListIds = board.Lists
+      .Where(list => list.TaskStatus == BoardTaskStatus.InProgress)
+      .Select(list => list.Id)
+      .ToHashSet();
+    var planItems = MarkShortestAlternative(
+      graphEngine
+        .PlanWork(
+          graph.Nodes,
+          graph.Edges,
+          ToWorkItems(graph.Cards, today, inProgressListIds, preferences),
+          new GraphPlanningOptions(
+            preferences.AvailableMinutes,
+            preferences.PreferAssigned,
+            preferences.IncludeUnassigned))
+        .Select(recommendation => cardsById.TryGetValue(
+          recommendation.Node,
+          out var card)
+            ? ToBoardWorkRecommendation(
+              card,
+              recommendation,
+              FindNodeAnalysis(nodeAnalyses, card.Id),
+              today,
+              preferences)
+            : null)
+        .OfType<BoardWorkRecommendation>()
+        .ToArray(),
+      preferences);
 
     return new BoardGraphAnalysis(
       board.Id,
@@ -77,7 +93,8 @@ internal static class BoardDependencyGraph
         .ToArray(),
       planItems,
       nodeAnalyses,
-      criticalPathIdSet);
+      criticalPathIdSet,
+      preferences);
   }
 
   public static BoardCardDependencyAnalysis? AnalyzeCard(
@@ -175,7 +192,9 @@ internal static class BoardDependencyGraph
 
   private static GraphWorkItem<Guid>[] ToWorkItems(
     IReadOnlyCollection<ProjectBoardCard> cards,
-    DateOnly today) =>
+    DateOnly today,
+    HashSet<Guid> inProgressListIds,
+    BoardPlanningPreferences preferences) =>
     cards
       .Select(card => new GraphWorkItem<Guid>(
         card.Id,
@@ -186,32 +205,102 @@ internal static class BoardDependencyGraph
           : card.DueDate.Value.DayNumber - today.DayNumber,
         card.Subtasks.Count,
         card.Subtasks.Count(subtask => subtask.IsCompleted),
-        Math.Max(0, card.Position)))
+        Math.Max(0, card.Position),
+        card.EstimatedMinutes ?? 0,
+        AssignmentOf(card, preferences.UserId),
+        inProgressListIds.Contains(card.ListId),
+        preferences.MatchesContext(card.Labels)))
       .ToArray();
+
+  private static GraphAssignment AssignmentOf(ProjectBoardCard card, Guid userId)
+  {
+    if (card.Assignees.Any(assignee => assignee.UserId == userId))
+    {
+      return GraphAssignment.Requester;
+    }
+
+    return card.Assignees.Count > 0
+      ? GraphAssignment.Others
+      : GraphAssignment.Unassigned;
+  }
+
+  private static BoardWorkRecommendation[] MarkShortestAlternative(
+    BoardWorkRecommendation[] planItems,
+    BoardPlanningPreferences preferences)
+  {
+    if (preferences.AvailableMinutes == 0
+      || planItems.Any(item => item.IsActionable && item.FitsAvailableTime))
+    {
+      return planItems;
+    }
+
+    var alternative = planItems
+      .Where(item => item.IsActionable && item.Card.EstimatedMinutes is not null)
+      .MinBy(item => item.Card.EstimatedMinutes);
+
+    return alternative is null
+      ? planItems
+      : planItems
+        .Select(item => item == alternative
+          ? item with { IsShortestAlternative = true }
+          : item)
+        .ToArray();
+  }
 
   private static BoardWorkRecommendation ToBoardWorkRecommendation(
     ProjectBoardCard card,
     GraphWorkRecommendation<Guid> recommendation,
     GraphNodeAnalysis<Guid>? nodeAnalysis,
-    DateOnly today) =>
+    DateOnly today,
+    BoardPlanningPreferences preferences) =>
     new(
       card,
       recommendation.Score,
       recommendation.BlockerCount == 0,
       recommendation.BlockerCount,
-      BuildReasons(card, recommendation, nodeAnalysis, today));
+      recommendation.FitsAvailableTime,
+      recommendation.IsAssignmentMatch,
+      recommendation.IsContextMatch,
+      recommendation.IsInProgress,
+      false,
+      BuildReasons(card, recommendation, nodeAnalysis, today, preferences));
 
   private static string[] BuildReasons(
     ProjectBoardCard card,
     GraphWorkRecommendation<Guid> recommendation,
     GraphNodeAnalysis<Guid>? nodeAnalysis,
-    DateOnly today)
+    DateOnly today,
+    BoardPlanningPreferences preferences)
   {
-    var reasons = new List<string>(5);
+    var reasons = new List<string>(8);
 
     reasons.Add(recommendation.BlockerCount == 0
       ? "Ready now"
       : $"{recommendation.BlockerCount} blocker{Plural(recommendation.BlockerCount)}");
+
+    if (preferences.AvailableMinutes > 0)
+    {
+      reasons.Add(card.EstimatedMinutes is null
+        ? "Effort unknown"
+        : recommendation.FitsAvailableTime
+          ? $"Fits {preferences.AvailableMinutes}m focus"
+          : $"Longer than {preferences.AvailableMinutes}m");
+    }
+
+    if (recommendation.IsAssignmentMatch)
+    {
+      reasons.Add("Assigned to you");
+    }
+
+    if (recommendation.IsInProgress)
+    {
+      reasons.Add("Already in progress");
+    }
+
+    if (recommendation.IsContextMatch)
+    {
+      reasons.Add($"Matches #{preferences.Context}");
+    }
 
     if (recommendation.IsCriticalPath)
     {
@@ -253,7 +342,7 @@ internal static class BoardDependencyGraph
     }
 
     return reasons
-      .Take(4)
+      .Take(6)
       .ToArray();
   }
 
@@ -296,13 +385,19 @@ internal sealed record BoardGraphAnalysis(
   IReadOnlyCollection<ProjectBoardCard> NextCards,
   IReadOnlyCollection<BoardWorkRecommendation> PlanItems,
   Dictionary<Guid, GraphNodeAnalysis<Guid>> NodeAnalyses,
-  HashSet<Guid> CriticalPathIds);
+  HashSet<Guid> CriticalPathIds,
+  BoardPlanningPreferences Preferences);
 
 internal sealed record BoardWorkRecommendation(
   ProjectBoardCard Card,
   int Score,
   bool IsActionable,
   int BlockerCount,
+  bool FitsAvailableTime,
+  bool IsAssignedToMe,
+  bool IsContextMatch,
+  bool IsInProgress,
+  bool IsShortestAlternative,
   IReadOnlyCollection<string> Reasons);
 
 internal sealed record BoardCardDependencyAnalysis(

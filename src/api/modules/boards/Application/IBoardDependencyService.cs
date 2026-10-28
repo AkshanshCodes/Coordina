@@ -9,6 +9,7 @@ public interface IBoardDependencyService
     Guid projectId,
     Guid boardId,
     Guid userId,
+    BoardPlanningRequest planning,
     CancellationToken cancellationToken);
 
   Task<BoardResult<BoardCardDependencyAnalysisResponse>> GetCardDependencyAnalysisAsync(

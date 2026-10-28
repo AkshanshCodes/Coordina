@@ -125,6 +125,10 @@ public static class BoardEndpoints
     Guid workspaceId,
     Guid projectId,
     Guid boardId,
+    int? availableMinutes,
+    string? context,
+    bool? preferAssigned,
+    bool? includeUnassigned,
     ClaimsPrincipal user,
     IBoardDependencyService boardDependencies,
     CancellationToken cancellationToken)
@@ -139,6 +143,11 @@ public static class BoardEndpoints
       projectId,
       boardId,
       userId,
+      new BoardPlanningRequest(
+        availableMinutes,
+        context,
+        preferAssigned,
+        includeUnassigned),
       cancellationToken);
 
     return ToResult(result);

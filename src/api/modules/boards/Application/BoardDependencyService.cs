@@ -14,8 +14,21 @@ public sealed class BoardDependencyService(
     Guid projectId,
     Guid boardId,
     Guid userId,
+    BoardPlanningRequest planning,
     CancellationToken cancellationToken)
   {
+    var preferences = BoardPlanningPreferences.Parse(
+      planning,
+      userId,
+      out var errors);
+
+    if (preferences is null)
+    {
+      return new BoardResult<BoardGraphResponse>(
+        BoardResultStatus.ValidationError,
+        Errors: errors);
+    }
+
     var access = await projectAccess.FindAccessAsync(
       workspaceId,
       projectId,
@@ -38,7 +51,7 @@ public sealed class BoardDependencyService(
       : new BoardResult<BoardGraphResponse>(
         BoardResultStatus.Success,
         BoardGraphResponseMapper.ToResponse(
-          BoardDependencyGraph.AnalyzeBoard(graphEngine, board)));
+          BoardDependencyGraph.AnalyzeBoard(graphEngine, board, preferences)));
   }
 
   public async Task<BoardResult<BoardCardDependencyAnalysisResponse>> GetCardDependencyAnalysisAsync(

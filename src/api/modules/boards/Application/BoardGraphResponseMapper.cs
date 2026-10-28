@@ -10,6 +10,8 @@ internal static class BoardGraphResponseMapper
     new(
       analysis.BoardId,
       analysis.IsAcyclic,
+      analysis.Preferences.AvailableMinutes,
+      analysis.Preferences.Context,
       ToCards(analysis.ReadyCards, analysis),
       ToCards(analysis.UnblockedCards, analysis),
       ToCards(analysis.DependencyOrder, analysis),
@@ -54,6 +56,12 @@ internal static class BoardGraphResponseMapper
         item.Score,
         item.IsActionable,
         item.BlockerCount,
+        item.Card.EstimatedMinutes,
+        item.FitsAvailableTime,
+        item.IsAssignedToMe,
+        item.IsContextMatch,
+        item.IsInProgress,
+        item.IsShortestAlternative,
         item.Reasons))
       .ToArray();
 
