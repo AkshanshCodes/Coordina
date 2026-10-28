@@ -1,10 +1,17 @@
-using Coordina.Api.Modules.Auth;
-using Coordina.Api.Modules.Boards;
-using Coordina.Api.Modules.Projects;
-using Coordina.Api.Modules.Workspaces;
+using Coordina.Api.Core.Hosting;
+using Coordina.Api.Modules.Auth.Application;
+using Coordina.Api.Modules.Auth.Infrastructure;
+using Coordina.Api.Modules.Boards.Application;
+using Coordina.Api.Modules.Boards.Infrastructure;
+using Coordina.Api.Modules.Projects.Application;
+using Coordina.Api.Modules.Projects.Infrastructure;
+using Coordina.Api.Modules.Workspaces.Application;
+using Coordina.Api.Modules.Workspaces.Infrastructure;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Coordina.Api.Tests.Support;
 
@@ -12,13 +19,13 @@ public sealed class ApiTestApplicationFactory : WebApplicationFactory<Program>
 {
   protected override void ConfigureWebHost(IWebHostBuilder builder)
   {
-    builder.UseEnvironment("Testing");
+    builder.UseEnvironment(CoreHostingExtensions.TestingEnvironment);
     builder.ConfigureTestServices(services =>
     {
-      services.AddInMemoryAuthStoreForTests();
-      services.AddInMemoryWorkspaceStoreForTests();
-      services.AddInMemoryProjectStoreForTests();
-      services.AddInMemoryBoardStoreForTests();
+      services.Replace(ServiceDescriptor.Singleton<IUserStore, InMemoryUserStore>());
+      services.Replace(ServiceDescriptor.Singleton<IWorkspaceStore, InMemoryWorkspaceStore>());
+      services.Replace(ServiceDescriptor.Singleton<IProjectStore, InMemoryProjectStore>());
+      services.Replace(ServiceDescriptor.Singleton<IBoardStore, InMemoryBoardStore>());
     });
   }
 }

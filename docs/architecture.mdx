@@ -12,19 +12,94 @@ and a native C++ graph engine handles dependency analysis behind a stable C ABI.
 ```
 src/
   api/            ASP.NET Core API (modular monolith)
+    core/          Kernel every module plugs into (modules, results, HTTP, security, persistence)
+    shared/        Pure helpers reused by modules (validation, text, enum codes)
     modules/
       auth/        Accounts, JWT issuance, password hashing
       workspaces/  Tenancy, membership, invites
       projects/    Project lifecycle + shared project access guard
       boards/      Boards, lists with workflow status, cards (single source of project work)
       health/      Liveness endpoints
-    infrastructure/ Cross-cutting persistence and configuration
   graph-engine/   C++20 native library (critical path, planning, suggestions)
   web/            React + Vite application
     features/      One folder per product area (auth, workspaces, projects, board)
     components/    Shared UI primitives and layout
     lib/           API client and cross-cutting helpers
 ```
+
+## Core and shared
+
+The API has two foundation layers below the feature modules. Layering is
+one-way, `modules → shared → core`, and `LayerDependencyTests` fails the build
+when core references shared or a module, or when shared references a module.
+
+**`src/api/core` is the kernel.** It defines how a module plugs into the host
+and the primitives every endpoint relies on:
+
+| Folder | Provides |
+| --- | --- |
+| `Modules` | `IModule` (`AddServices`, `MapEndpoints`) and `AddModules`/`MapModules` |
+| `Hosting` | `AddCore`/`UseCore`: CORS, persistence, authorization, OpenAPI, `TimeProvider`, ProblemDetails for unhandled exceptions |
+| `Results` | `Result`, `Result<T>` and `Error` (validation, unauthorized, forbidden, not found, conflict) |
+| `Http` | `MapApiGroup` (authenticated by default) and `ToOkResult`, `ToCreatedResult`, `ToNoContentResult`: the only result-to-HTTP mapping |
+| `Security` | `CurrentUser`, bound straight from the validated JWT as an endpoint parameter |
+| `Time` | `GetUtcToday` for date rules on top of the injected `TimeProvider` |
+| `Persistence` | `CoordinaDbContext`, Postgres options and the EF migrations |
+| `Configuration` | `.env` loading |
+
+**`src/api/shared` is the toolbox.** Helpers with no infrastructure dependency:
+`ValidationErrors` (field errors with the API's standard wording, including
+enum fields whose "must be A, B, or C" message is generated from the enum),
+`TextNormalizer` (trim-to-null, distinct non-blank lists) and `EnumCode`
+(UPPER_SNAKE_CASE codes such as `IN_PROGRESS`, used for API payloads and
+database columns alike).
+
+A typical endpoint and service built on them:
+
+```csharp
+private static async Task<IResult> Create(
+  CreateWorkspaceRequest request,
+  CurrentUser user,
+  IWorkspaceService workspaces,
+  CancellationToken cancellationToken)
+{
+  var result = await workspaces.CreateAsync(request, user.Id, cancellationToken);
+  return result.ToCreatedResult(workspace => $"/workspaces/{workspace.Id}");
+}
+
+public async Task<Result<WorkspaceResponse>> CreateAsync(...)
+{
+  var errors = new ValidationErrors()
+    .Required("name", request.Name, "Workspace name", minLength: 2, maxLength: 80);
+
+  if (errors.HasErrors)
+  {
+    return errors.ToError();
+  }
+
+  var workspace = await store.CreateAsync(request.Name.Trim(), userId, clock.GetUtcNow(), ct);
+  return Result.Success(ToResponse(workspace));
+}
+```
+
+Errors always take one of these shapes:
+
+| Case | Status | Body |
+| --- | --- | --- |
+| Validation | 400 | `ValidationProblemDetails` with field `errors` |
+| Missing or invalid token | 401 | empty |
+| Forbidden | 403 | empty |
+| Not found / conflict | 404 / 409 | `{ "message": "..." }` when a message is set |
+| Unhandled exception | 500 | `ProblemDetails` with `traceId`, no exception details |
+
+What belongs where: something every module needs to plug in or answer HTTP
+goes to `core`; a reusable, side-effect-free helper goes to `shared`; anything
+that knows about a business concept (workspaces, projects, boards) stays in its
+module. Promote code to `shared` once a second module needs it, not before.
+
+The conventions above are enforced by tests (`LayerDependencyTests`,
+`ModuleConventionTests`, `EndpointAuthorizationTests`,
+`ModuleRegistrationTests`); `CONTRIBUTING.md` lists what each one checks.
 
 ## Backend rules
 
@@ -33,18 +108,28 @@ src/
 | Layer | Contents | May reference |
 | --- | --- | --- |
 | `Domain` | Immutable domain records and enums | Nothing outside the module |
-| `Application` | Services, store interfaces, result types | Other modules' `Application`/`Domain` |
+| `Application` | Services, store interfaces | Other modules' `Application`/`Domain`, `core`, `shared` |
 | `Infrastructure` | EF Core entities, configurations, stores | Its own `Application`/`Domain` |
 | `Contracts` | Request/response DTOs | Its own `Domain` |
 
 **Dependency direction is one-way.** `boards → projects → workspaces → auth`.
-A module lower in the chain never references one above it. New modules plug in
-via an `Add<Name>Module` extension in `Program.cs`.
+A module lower in the chain never references one above it. A new module
+implements `IModule` and is added to the list passed to `AddModules` in
+`Program.cs`; the host never wires a module's internals.
+
+**Services return results, endpoints stay thin.** Expected outcomes are
+`Result`/`Result<T>` values (`return Error.NotFound();`), never exceptions.
+Handlers take `CurrentUser`, call one service and map the result with the core
+`Http` extensions, so status codes and error bodies are identical everywhere.
+
+**Time is injected.** Services take `TimeProvider` instead of reading
+`DateTimeOffset.UtcNow`, which keeps time-dependent rules testable.
 
 **Authorization is centralized.** `IProjectAccessGuard` (projects module) is the
 single implementation of "can this user read/write this project in this
-workspace". Board services consume it instead of re-implementing role
-checks. New project-scoped features must go through the guard.
+workspace". `AuthorizeReadAsync` and `AuthorizeWriteAsync` return a
+`Result<ProjectAccess>`, so callers just propagate `access.Error`. Project and
+board services consume it instead of re-implementing role checks. New project-scoped features must go through the guard.
 
 **Services are scoped by capability, not by module size.** The boards module
 splits its application layer into `BoardCatalogService`, `BoardListService`,
@@ -56,7 +141,9 @@ When a service grows past a single clear responsibility, split it.
 and an in-memory implementation for fast integration tests. The
 `tests/api-postgres` suite runs the same endpoints against the Postgres stores
 and real migrations. Handlers and services never touch `CoordinaDbContext`
-directly.
+directly. The context lives in `core` and declares no module `DbSet`: modules
+own their entities and `IEntityTypeConfiguration` classes, and stores reach
+their tables with `Set<TEntity>()`.
 
 **Workflow state is explicit.** A board list has a `taskStatus` (`TODO`,
 `IN_PROGRESS`, `DONE`) that is stored, never inferred from its title. Card

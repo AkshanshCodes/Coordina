@@ -1,16 +1,14 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Coordina.Api.Tests.Support;
 
 namespace Coordina.Api.Tests;
 
 public sealed class BoardPlanningEndpointsTests(ApiTestApplicationFactory factory)
-  : IClassFixture<ApiTestApplicationFactory>
+  : ApiTest(factory)
 {
   private static readonly string[] FlowLists = ["Todo", "Doing", "Done"];
   private static readonly string[] BackendLabel = ["backend"];
-  private readonly HttpClient _client = factory.CreateClient();
 
   [Fact]
   public async Task Preferences_RankMyFittingContextCardFirst()
@@ -80,10 +78,10 @@ public sealed class BoardPlanningEndpointsTests(ApiTestApplicationFactory factor
       dueDate = DateOnly.FromDateTime(DateTime.UtcNow),
       assigneeIds = new[] { flow.UserId }
     });
-    var dependency = await SendAsync(
-      flow.AccessToken,
+    var dependency = await Api.SendAsync(
       HttpMethod.Post,
       $"{flow.BoardPath}/cards/{blocked}/dependencies",
+      flow.AccessToken,
       new { dependsOnCardId = blocker });
     dependency.EnsureSuccessStatusCode();
 
@@ -133,10 +131,10 @@ public sealed class BoardPlanningEndpointsTests(ApiTestApplicationFactory factor
   {
     var flow = await CreateFlowAsync();
 
-    var response = await SendAsync(
-      flow.AccessToken,
+    var response = await Api.SendAsync(
       HttpMethod.Get,
-      $"{flow.BoardPath}/graph{query}");
+      $"{flow.BoardPath}/graph{query}",
+      flow.AccessToken);
 
     Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
   }
@@ -160,49 +158,6 @@ public sealed class BoardPlanningEndpointsTests(ApiTestApplicationFactory factor
       second.PlanItems.Select(item => item.Card.Id));
   }
 
-  private async Task<Flow> CreateFlowAsync()
-  {
-    var auth = await RegisterAsync();
-    var workspace = await SendForAsync<IdResponse>(
-      auth.AccessToken, HttpMethod.Post, "/workspaces", new { name = "Planning Team" });
-    var project = await SendForAsync<IdResponse>(
-      auth.AccessToken, HttpMethod.Post, $"/workspaces/{workspace.Id}/projects",
-      new { name = "Planning" });
-    var board = await SendForAsync<BoardResponse>(
-      auth.AccessToken, HttpMethod.Post,
-      $"/workspaces/{workspace.Id}/projects/{project.Id}/boards",
-      new { name = "Planning", template = "CUSTOM", customListTitles = FlowLists });
-
-    return new Flow(auth.AccessToken, auth.User.Id, workspace.Id, project.Id, board);
-  }
-
-  private async Task<string> JoinAsTeammateAsync(Flow flow)
-  {
-    var teammate = await RegisterAsync();
-    var invite = await SendForAsync<InviteResponse>(
-      flow.AccessToken, HttpMethod.Post, $"/workspaces/{flow.WorkspaceId}/invites");
-    await SendForAsync<IdResponse>(
-      teammate.AccessToken, HttpMethod.Post, "/workspaces/join",
-      new { inviteCode = invite.Code });
-
-    return teammate.User.Id;
-  }
-
-  private async Task<AuthResponse> RegisterAsync()
-  {
-    var response = await _client.PostAsJsonAsync("/auth/register", new
-    {
-      name = "Planner",
-      email = $"planner-{Guid.NewGuid():N}@coordina.test",
-      password = "Password123!"
-    });
-    response.EnsureSuccessStatusCode();
-    var auth = await response.Content.ReadFromJsonAsync<AuthResponse>();
-    Assert.NotNull(auth);
-
-    return auth;
-  }
-
   private async Task<string> CreateCardAsync(
     Flow flow,
     string listId,
@@ -211,50 +166,42 @@ public sealed class BoardPlanningEndpointsTests(ApiTestApplicationFactory factor
   {
     var body = System.Text.Json.JsonSerializer.SerializeToNode(details)!.AsObject();
     body["title"] = title;
-    var board = await SendForAsync<BoardResponse>(
-      flow.AccessToken,
+    var board = await Api.SendForAsync<BoardResponse>(
       HttpMethod.Post,
       $"{flow.BoardPath}/lists/{listId}/cards",
+      flow.AccessToken,
       body);
 
     return board.Lists.SelectMany(list => list.Cards).Single(card => card.Title == title).Id;
   }
 
-  private Task<GraphResponse> GetGraphAsync(Flow flow, string query) =>
-    SendForAsync<GraphResponse>(
-      flow.AccessToken,
+  private Task<BoardGraphResponse> GetGraphAsync(Flow flow, string query) =>
+    Api.SendForAsync<BoardGraphResponse>(
       HttpMethod.Get,
-      $"{flow.BoardPath}/graph{query}");
+      $"{flow.BoardPath}/graph{query}",
+      flow.AccessToken);
 
-  private async Task<T> SendForAsync<T>(
-    string accessToken,
-    HttpMethod method,
-    string path,
-    object? body = null)
+  private async Task<Flow> CreateFlowAsync()
   {
-    using var response = await SendAsync(accessToken, method, path, body);
-    response.EnsureSuccessStatusCode();
-    var payload = await response.Content.ReadFromJsonAsync<T>();
-    Assert.NotNull(payload);
+    var owner = await Api.RegisterAsync("Planner");
+    var workspace = await Api.CreateWorkspaceAsync(owner.AccessToken, "Planning Team");
+    var project = await Api.CreateProjectAsync(owner.AccessToken, workspace.Id, "Planning");
+    var board = await Api.CreateBoardAsync(
+      owner.AccessToken,
+      workspace.Id,
+      project.Id,
+      "CUSTOM",
+      FlowLists,
+      "Planning");
 
-    return payload;
+    return new Flow(owner.AccessToken, owner.User.Id, workspace.Id, project.Id, board);
   }
 
-  private async Task<HttpResponseMessage> SendAsync(
-    string accessToken,
-    HttpMethod method,
-    string path,
-    object? body = null)
+  private async Task<string> JoinAsTeammateAsync(Flow flow)
   {
-    using var request = new HttpRequestMessage(method, path);
-    request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+    var teammate = await Api.AddMemberAsync(flow.AccessToken, flow.WorkspaceId);
 
-    if (body is not null)
-    {
-      request.Content = JsonContent.Create(body);
-    }
-
-    return await _client.SendAsync(request);
+    return teammate.User.Id;
   }
 
   private sealed record Flow(
@@ -270,39 +217,4 @@ public sealed class BoardPlanningEndpointsTests(ApiTestApplicationFactory factor
     public string ListId(string title) =>
       Board.Lists.Single(list => list.Title == title).Id;
   }
-
-  private sealed record AuthResponse(string AccessToken, UserResponse User);
-
-  private sealed record UserResponse(string Id);
-
-  private sealed record IdResponse(string Id);
-
-  private sealed record InviteResponse(string Code);
-
-  private sealed record BoardResponse(string Id, IReadOnlyCollection<ListResponse> Lists);
-
-  private sealed record ListResponse(
-    string Id,
-    string Title,
-    IReadOnlyCollection<CardResponse> Cards);
-
-  private sealed record CardResponse(string Id, string Title);
-
-  private sealed record GraphResponse(
-    int AvailableMinutes,
-    string? Context,
-    IReadOnlyCollection<PlanItemResponse> PlanItems);
-
-  private sealed record PlanItemResponse(
-    GraphCardResponse Card,
-    bool IsActionable,
-    int? EstimatedMinutes,
-    bool FitsAvailableTime,
-    bool IsAssignedToMe,
-    bool IsContextMatch,
-    bool IsInProgress,
-    bool IsShortestAlternative,
-    IReadOnlyCollection<string> Reasons);
-
-  private sealed record GraphCardResponse(string Id, string Title);
 }

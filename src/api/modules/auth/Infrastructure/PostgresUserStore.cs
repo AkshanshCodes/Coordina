@@ -1,4 +1,4 @@
-using Coordina.Api.Infrastructure.Persistence;
+using Coordina.Api.Core.Persistence;
 using Coordina.Api.Modules.Auth.Application;
 using Coordina.Api.Modules.Auth.Domain;
 using Microsoft.EntityFrameworkCore;
@@ -8,11 +8,13 @@ namespace Coordina.Api.Modules.Auth.Infrastructure;
 
 public sealed class PostgresUserStore(CoordinaDbContext dbContext) : IUserStore
 {
+  private DbSet<AuthUserEntity> AuthUsers => dbContext.Set<AuthUserEntity>();
+
   public async Task<UserAccount?> FindByEmailAsync(
     string normalizedEmail,
     CancellationToken cancellationToken)
   {
-    var user = await dbContext.AuthUsers
+    var user = await AuthUsers
       .AsNoTracking()
       .SingleOrDefaultAsync(
         user => user.NormalizedEmail == normalizedEmail,
@@ -30,7 +32,7 @@ public sealed class PostgresUserStore(CoordinaDbContext dbContext) : IUserStore
     UserAccount user,
     CancellationToken cancellationToken)
   {
-    dbContext.AuthUsers.Add(new AuthUserEntity
+    AuthUsers.Add(new AuthUserEntity
     {
       Id = user.Id,
       Name = user.Name,

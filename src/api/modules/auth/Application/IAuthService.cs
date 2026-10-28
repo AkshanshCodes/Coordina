@@ -1,14 +1,15 @@
+using Coordina.Api.Core.Results;
 using Coordina.Api.Modules.Auth.Contracts;
 
 namespace Coordina.Api.Modules.Auth.Application;
 
 public interface IAuthService
 {
-  Task<AuthResult<AuthResponse>> RegisterAsync(
+  Task<Result<AuthResponse>> RegisterAsync(
     RegisterRequest request,
     CancellationToken cancellationToken);
 
-  Task<AuthResult<AuthResponse>> LoginAsync(
+  Task<Result<AuthResponse>> LoginAsync(
     LoginRequest request,
     CancellationToken cancellationToken);
 }

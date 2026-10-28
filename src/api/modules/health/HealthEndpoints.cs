@@ -4,12 +4,21 @@ public static class HealthEndpoints
 {
   public static IEndpointRouteBuilder MapHealthEndpoints(this IEndpointRouteBuilder app)
   {
-    app.MapGet("/health", () => Results.Ok(new
+    app.MapGet("/", () => Results.Ok(new
+    {
+      message = "Welcome to the Coordina API."
+    }))
+    .AllowAnonymous()
+    .WithTags("System")
+    .WithSummary("API welcome message");
+
+    app.MapGet("/health", (TimeProvider clock) => Results.Ok(new
     {
       status = "ok",
       service = "Coordina API",
-      time = DateTime.UtcNow
+      time = clock.GetUtcNow().UtcDateTime
     }))
+    .AllowAnonymous()
     .WithTags("System")
     .WithSummary("Health check");
 

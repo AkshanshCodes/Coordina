@@ -1,4 +1,5 @@
-using System.Security.Claims;
+using Coordina.Api.Core.Http;
+using Coordina.Api.Core.Security;
 using Coordina.Api.Modules.Workspaces.Application;
 using Coordina.Api.Modules.Workspaces.Contracts;
 
@@ -9,10 +10,7 @@ public static class WorkspacesEndpoints
   public static IEndpointRouteBuilder MapWorkspacesEndpoints(
     this IEndpointRouteBuilder app)
   {
-    var group = app
-      .MapGroup("/workspaces")
-      .RequireAuthorization()
-      .WithTags("Workspaces");
+    var group = app.MapApiGroup("/workspaces", "Workspaces");
 
     group.MapPost("/", Create)
       .WithSummary("Create workspace")
@@ -51,214 +49,111 @@ public static class WorkspacesEndpoints
 
   private static async Task<IResult> Create(
     CreateWorkspaceRequest request,
-    ClaimsPrincipal user,
+    CurrentUser user,
     IWorkspaceService workspaceService,
     CancellationToken cancellationToken)
   {
-    if (!TryGetUserId(user, out var userId))
-    {
-      return Results.Unauthorized();
-    }
-
     var result = await workspaceService.CreateAsync(
       request,
-      userId,
+      user.Id,
       cancellationToken);
 
-    return result.Status switch
-    {
-      WorkspaceResultStatus.Success => Results.Created(
-        $"/workspaces/{result.Value!.Id}",
-        result.Value),
-      WorkspaceResultStatus.ValidationError => Results.ValidationProblem(
-        result.Errors?.ToDictionary() ?? new Dictionary<string, string[]>()),
-      _ => Results.BadRequest()
-    };
+    return result.ToCreatedResult(workspace => $"/workspaces/{workspace.Id}");
   }
 
   private static async Task<IResult> List(
-    ClaimsPrincipal user,
+    CurrentUser user,
     IWorkspaceService workspaceService,
     CancellationToken cancellationToken)
   {
-    if (!TryGetUserId(user, out var userId))
-    {
-      return Results.Unauthorized();
-    }
+    var workspaces = await workspaceService.ListAsync(user.Id, cancellationToken);
 
-    var workspaces = await workspaceService.ListAsync(userId, cancellationToken);
-
-    return Results.Ok(workspaces);
+    return TypedResults.Ok(workspaces);
   }
 
   private static async Task<IResult> Get(
     Guid workspaceId,
-    ClaimsPrincipal user,
+    CurrentUser user,
     IWorkspaceService workspaceService,
     CancellationToken cancellationToken)
   {
-    if (!TryGetUserId(user, out var userId))
-    {
-      return Results.Unauthorized();
-    }
-
     var result = await workspaceService.GetAsync(
       workspaceId,
-      userId,
+      user.Id,
       cancellationToken);
 
-    return result.Status switch
-    {
-      WorkspaceResultStatus.Success => Results.Ok(result.Value),
-      WorkspaceResultStatus.NotFound => Results.NotFound(),
-      _ => Results.BadRequest()
-    };
+    return result.ToOkResult();
   }
 
   private static async Task<IResult> Join(
     JoinWorkspaceRequest request,
-    ClaimsPrincipal user,
+    CurrentUser user,
     IWorkspaceService workspaceService,
     CancellationToken cancellationToken)
   {
-    if (!TryGetUserId(user, out var userId))
-    {
-      return Results.Unauthorized();
-    }
-
     var result = await workspaceService.JoinAsync(
       request,
-      userId,
+      user.Id,
       cancellationToken);
 
-    return result.Status switch
-    {
-      WorkspaceResultStatus.Success => Results.Ok(result.Value),
-      WorkspaceResultStatus.ValidationError => Results.ValidationProblem(
-        result.Errors?.ToDictionary() ?? new Dictionary<string, string[]>()),
-      WorkspaceResultStatus.NotFound => Results.NotFound(new
-      {
-        message = result.Message ?? "Invitation code is invalid."
-      }),
-      WorkspaceResultStatus.Conflict => Results.Conflict(new
-      {
-        message = result.Message
-      }),
-      _ => Results.BadRequest()
-    };
+    return result.ToOkResult();
   }
 
   private static async Task<IResult> CreateInvite(
     Guid workspaceId,
-    ClaimsPrincipal user,
+    CurrentUser user,
     IWorkspaceService workspaceService,
     CancellationToken cancellationToken)
   {
-    if (!TryGetUserId(user, out var userId))
-    {
-      return Results.Unauthorized();
-    }
-
     var result = await workspaceService.CreateInviteAsync(
       workspaceId,
-      userId,
+      user.Id,
       cancellationToken);
 
-    return result.Status switch
-    {
-      WorkspaceResultStatus.Success => Results.Created(
-        $"/workspaces/{workspaceId}/invites",
-        result.Value),
-      WorkspaceResultStatus.Forbidden => Results.Forbid(),
-      WorkspaceResultStatus.NotFound => Results.NotFound(),
-      _ => Results.BadRequest()
-    };
+    return result.ToCreatedResult(_ => $"/workspaces/{workspaceId}/invites");
   }
 
   private static async Task<IResult> ListMembers(
     Guid workspaceId,
-    ClaimsPrincipal user,
+    CurrentUser user,
     IWorkspaceService workspaceService,
     CancellationToken cancellationToken)
   {
-    if (!TryGetUserId(user, out var userId))
-    {
-      return Results.Unauthorized();
-    }
-
     var result = await workspaceService.ListMembersAsync(
       workspaceId,
-      userId,
+      user.Id,
       cancellationToken);
 
-    return result.Status switch
-    {
-      WorkspaceResultStatus.Success => Results.Ok(result.Value),
-      WorkspaceResultStatus.NotFound => Results.NotFound(),
-      _ => Results.BadRequest()
-    };
+    return result.ToOkResult();
   }
 
   private static async Task<IResult> RemoveMember(
     Guid workspaceId,
     Guid memberUserId,
-    ClaimsPrincipal user,
+    CurrentUser user,
     IWorkspaceService workspaceService,
     CancellationToken cancellationToken)
   {
-    if (!TryGetUserId(user, out var userId))
-    {
-      return Results.Unauthorized();
-    }
-
     var result = await workspaceService.RemoveMemberAsync(
       workspaceId,
       memberUserId,
-      userId,
+      user.Id,
       cancellationToken);
 
-    return result.Status switch
-    {
-      WorkspaceResultStatus.Success => Results.NoContent(),
-      WorkspaceResultStatus.ValidationError => Results.ValidationProblem(
-        result.Errors?.ToDictionary() ?? new Dictionary<string, string[]>()),
-      WorkspaceResultStatus.Forbidden => Results.Forbid(),
-      WorkspaceResultStatus.NotFound => Results.NotFound(),
-      _ => Results.BadRequest()
-    };
+    return result.ToNoContentResult();
   }
 
   private static async Task<IResult> Delete(
     Guid workspaceId,
-    ClaimsPrincipal user,
+    CurrentUser user,
     IWorkspaceService workspaceService,
     CancellationToken cancellationToken)
   {
-    if (!TryGetUserId(user, out var userId))
-    {
-      return Results.Unauthorized();
-    }
-
     var result = await workspaceService.DeleteAsync(
       workspaceId,
-      userId,
+      user.Id,
       cancellationToken);
 
-    return result.Status switch
-    {
-      WorkspaceResultStatus.Success => Results.NoContent(),
-      WorkspaceResultStatus.Forbidden => Results.Forbid(),
-      WorkspaceResultStatus.NotFound => Results.NotFound(),
-      _ => Results.BadRequest()
-    };
-  }
-
-  private static bool TryGetUserId(
-    ClaimsPrincipal user,
-    out Guid userId)
-  {
-    return Guid.TryParse(
-      user.FindFirstValue(ClaimTypes.NameIdentifier),
-      out userId);
+    return result.ToNoContentResult();
   }
 }

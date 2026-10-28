@@ -1,15 +1,24 @@
+using Coordina.Api.Core.Results;
 using Coordina.Api.Modules.Projects.Contracts;
 using Coordina.Api.Modules.Projects.Domain;
 using Coordina.Api.Modules.Workspaces.Application;
 using Coordina.Api.Modules.Workspaces.Domain;
+using Coordina.Api.Shared.Enums;
+using Coordina.Api.Shared.Text;
+using Coordina.Api.Shared.Validation;
 
 namespace Coordina.Api.Modules.Projects.Application;
 
 public sealed class ProjectService(
   IProjectStore projects,
-  IWorkspaceStore workspaces) : IProjectService
+  IWorkspaceStore workspaces,
+  IProjectAccessGuard projectAccess,
+  TimeProvider clock) : IProjectService
 {
-  public async Task<ProjectResult<ProjectResponse>> CreateAsync(
+  private const string OwnerOutsideWorkspaceMessage =
+    "Project owner must belong to the workspace.";
+
+  public async Task<Result<ProjectResponse>> CreateAsync(
     Guid workspaceId,
     CreateProjectRequest request,
     Guid userId,
@@ -19,7 +28,7 @@ public sealed class ProjectService(
 
     if (role is null)
     {
-      return new ProjectResult<ProjectResponse>(ProjectResultStatus.NotFound);
+      return Error.NotFound();
     }
 
     var ownerId = request.ProjectOwnerId ?? userId;
@@ -27,41 +36,38 @@ public sealed class ProjectService(
 
     if (ownerRole is null)
     {
-      return new ProjectResult<ProjectResponse>(
-        ProjectResultStatus.ValidationError,
-        Errors: new Dictionary<string, string[]>
-        {
-          [nameof(request.ProjectOwnerId)] = ["Project owner must belong to the workspace."]
-        });
+      return Error.Validation(
+        nameof(request.ProjectOwnerId),
+        OwnerOutsideWorkspaceMessage);
     }
 
-    var errors = ValidateCreate(request);
+    var errors = ValidateFields(
+      request.Name,
+      request.Description,
+      request.Key,
+      request.Icon,
+      request.Color);
 
-    if (errors.Count > 0)
+    if (errors.HasErrors)
     {
-      return new ProjectResult<ProjectResponse>(
-        ProjectResultStatus.ValidationError,
-        Errors: errors);
+      return errors.ToError();
     }
 
-    var now = DateTimeOffset.UtcNow;
     var project = await projects.CreateAsync(
       workspaceId,
       request.Name.Trim(),
-      NormalizeText(request.Description),
+      TextNormalizer.TrimToNull(request.Description),
       NormalizeKey(request.Key),
-      NormalizeText(request.Icon),
-      NormalizeText(request.Color),
+      TextNormalizer.TrimToNull(request.Icon),
+      TextNormalizer.TrimToNull(request.Color),
       ownerId,
-      now,
+      clock.GetUtcNow(),
       cancellationToken);
 
-    return new ProjectResult<ProjectResponse>(
-      ProjectResultStatus.Success,
-      ToResponse(project));
+    return Result.Success(ToResponse(project));
   }
 
-  public async Task<ProjectResult<IReadOnlyCollection<ProjectResponse>>> ListAsync(
+  public async Task<Result<IReadOnlyCollection<ProjectResponse>>> ListAsync(
     Guid workspaceId,
     bool includeArchived,
     bool includeCompleted,
@@ -72,8 +78,7 @@ public sealed class ProjectService(
 
     if (role is null)
     {
-      return new ProjectResult<IReadOnlyCollection<ProjectResponse>>(
-        ProjectResultStatus.NotFound);
+      return Error.NotFound();
     }
 
     var scopedProjects = await projects.ListForWorkspaceAsync(
@@ -82,85 +87,59 @@ public sealed class ProjectService(
       includeCompleted,
       cancellationToken);
 
-    return new ProjectResult<IReadOnlyCollection<ProjectResponse>>(
-      ProjectResultStatus.Success,
+    return Result.Success<IReadOnlyCollection<ProjectResponse>>(
       scopedProjects.Select(ToResponse).ToArray());
   }
 
-  public async Task<ProjectResult<ProjectResponse>> GetAsync(
+  public async Task<Result<ProjectResponse>> GetAsync(
     Guid workspaceId,
     Guid projectId,
     Guid userId,
     CancellationToken cancellationToken)
   {
-    var role = await FindRoleAsync(workspaceId, userId, cancellationToken);
-
-    if (role is null)
-    {
-      return new ProjectResult<ProjectResponse>(ProjectResultStatus.NotFound);
-    }
-
-    var project = await projects.FindInWorkspaceAsync(
+    var access = await projectAccess.AuthorizeReadAsync(
       workspaceId,
       projectId,
+      userId,
       cancellationToken);
 
-    return project is null
-      ? new ProjectResult<ProjectResponse>(ProjectResultStatus.NotFound)
-      : new ProjectResult<ProjectResponse>(
-        ProjectResultStatus.Success,
-        ToResponse(project));
+    return access.IsSuccess
+      ? Result.Success(ToResponse(access.Value.Project))
+      : access.Error;
   }
 
-  public async Task<ProjectResult<ProjectResponse>> UpdateAsync(
+  public async Task<Result<ProjectResponse>> UpdateAsync(
     Guid workspaceId,
     Guid projectId,
     UpdateProjectRequest request,
     Guid userId,
     CancellationToken cancellationToken)
   {
-    var role = await FindRoleAsync(workspaceId, userId, cancellationToken);
-
-    if (role is null)
-    {
-      return new ProjectResult<ProjectResponse>(ProjectResultStatus.NotFound);
-    }
-
-    var project = await projects.FindInWorkspaceAsync(
+    var access = await projectAccess.AuthorizeWriteAsync(
       workspaceId,
       projectId,
+      userId,
       cancellationToken);
 
-    if (project is null)
+    if (!access.IsSuccess)
     {
-      return new ProjectResult<ProjectResponse>(ProjectResultStatus.NotFound);
+      return access.Error;
     }
 
-    if (project.Status == ProjectStatus.Completed)
+    if (!access.Value.CanManage(userId))
     {
-      return new ProjectResult<ProjectResponse>(
-        ProjectResultStatus.Conflict,
-        Message: "Completed projects are read-only.");
+      return Error.Forbidden(
+        "Only workspace owners or project owners can update projects.");
     }
 
-    if (!CanManageProject(role.Value, project, userId))
-    {
-      return new ProjectResult<ProjectResponse>(
-        ProjectResultStatus.Forbidden,
-        Message: "Only workspace owners or project owners can update projects.");
-    }
+    var project = access.Value.Project;
 
-    var status = ParseStatus(request.Status, out var statusError)
-      ?? project.Status;
+    var statusErrors = new ValidationErrors()
+      .Code<ProjectStatus>(nameof(request.Status), request.Status, "Project status", out var status);
 
-    if (statusError is not null)
+    if (statusErrors.HasErrors)
     {
-      return new ProjectResult<ProjectResponse>(
-        ProjectResultStatus.ValidationError,
-        Errors: new Dictionary<string, string[]>
-        {
-          [nameof(request.Status)] = [statusError]
-        });
+      return statusErrors.ToError();
     }
 
     var ownerId = request.ProjectOwnerId ?? project.ProjectOwnerId;
@@ -168,97 +147,81 @@ public sealed class ProjectService(
 
     if (ownerRole is null)
     {
-      return new ProjectResult<ProjectResponse>(
-        ProjectResultStatus.ValidationError,
-        Errors: new Dictionary<string, string[]>
-        {
-          [nameof(request.ProjectOwnerId)] = ["Project owner must belong to the workspace."]
-        });
+      return Error.Validation(
+        nameof(request.ProjectOwnerId),
+        OwnerOutsideWorkspaceMessage);
     }
 
     var update = new ProjectUpdate(
-      NormalizeRequiredText(request.Name) ?? project.Name,
+      TextNormalizer.TrimToNull(request.Name) ?? project.Name,
       request.Description is null
         ? project.Description
-        : NormalizeText(request.Description),
+        : TextNormalizer.TrimToNull(request.Description),
       request.Key is null ? project.Key : NormalizeKey(request.Key),
-      request.Icon is null ? project.Icon : NormalizeText(request.Icon),
-      request.Color is null ? project.Color : NormalizeText(request.Color),
+      request.Icon is null ? project.Icon : TextNormalizer.TrimToNull(request.Icon),
+      request.Color is null ? project.Color : TextNormalizer.TrimToNull(request.Color),
       ownerId,
-      status);
+      status ?? project.Status);
 
-    var errors = ValidateUpdate(update);
+    var errors = ValidateFields(
+      update.Name,
+      update.Description,
+      update.Key,
+      update.Icon,
+      update.Color);
 
-    if (errors.Count > 0)
+    if (errors.HasErrors)
     {
-      return new ProjectResult<ProjectResponse>(
-        ProjectResultStatus.ValidationError,
-        Errors: errors);
+      return errors.ToError();
     }
 
     var updatedProject = await projects.UpdateInWorkspaceAsync(
       workspaceId,
       projectId,
       update,
-      DateTimeOffset.UtcNow,
+      clock.GetUtcNow(),
       cancellationToken);
 
     return updatedProject is null
-      ? new ProjectResult<ProjectResponse>(ProjectResultStatus.NotFound)
-      : new ProjectResult<ProjectResponse>(
-        ProjectResultStatus.Success,
-        ToResponse(updatedProject));
+      ? Error.NotFound()
+      : Result.Success(ToResponse(updatedProject));
   }
 
-  public async Task<ProjectResult<object>> DeleteAsync(
+  public async Task<Result> DeleteAsync(
     Guid workspaceId,
     Guid projectId,
     Guid userId,
     CancellationToken cancellationToken)
   {
-    var role = await FindRoleAsync(workspaceId, userId, cancellationToken);
-
-    if (role is null)
-    {
-      return new ProjectResult<object>(ProjectResultStatus.NotFound);
-    }
-
-    var project = await projects.FindInWorkspaceAsync(
+    var access = await projectAccess.AuthorizeWriteAsync(
       workspaceId,
       projectId,
+      userId,
       cancellationToken);
 
-    if (project is null)
+    if (!access.IsSuccess)
     {
-      return new ProjectResult<object>(ProjectResultStatus.NotFound);
+      return access.Error;
     }
 
-    if (project.Status == ProjectStatus.Completed)
+    if (!access.Value.CanManage(userId))
     {
-      return new ProjectResult<object>(
-        ProjectResultStatus.Conflict,
-        Message: "Completed projects are read-only.");
+      return Error.Forbidden(
+        "Only workspace owners or project owners can archive projects.");
     }
 
-    if (!CanManageProject(role.Value, project, userId))
-    {
-      return new ProjectResult<object>(
-        ProjectResultStatus.Forbidden,
-        Message: "Only workspace owners or project owners can archive projects.");
-    }
+    var project = access.Value.Project;
 
     var archived = await projects.ArchiveInWorkspaceAsync(
       workspaceId,
       projectId,
-      DateTimeOffset.UtcNow,
+      clock.GetUtcNow(),
       cancellationToken);
 
-    return archived
-      ? new ProjectResult<object>(ProjectResultStatus.Success)
-      : new ProjectResult<object>(ProjectResultStatus.NotFound);
+    return archived ? Result.Success() : Error.NotFound();
   }
 
-  public async Task<ProjectResult<object>> PermanentlyDeleteAsync(
+  public async Task<Result> PermanentlyDeleteAsync(
     Guid workspaceId,
     Guid projectId,
     Guid userId,
@@ -268,14 +231,13 @@ public sealed class ProjectService(
 
     if (role is null)
     {
-      return new ProjectResult<object>(ProjectResultStatus.NotFound);
+      return Error.NotFound();
     }
 
     if (role != WorkspaceRole.Owner)
     {
-      return new ProjectResult<object>(
-        ProjectResultStatus.Forbidden,
-        Message: "Only workspace owners can permanently delete projects.");
+      return Error.Forbidden(
+        "Only workspace owners can permanently delete projects.");
     }
 
     var deleted = await projects.PermanentlyDeleteInWorkspaceAsync(
@@ -283,9 +245,7 @@ public sealed class ProjectService(
       projectId,
       cancellationToken);
 
-    return deleted
-      ? new ProjectResult<object>(ProjectResultStatus.Success)
-      : new ProjectResult<object>(ProjectResultStatus.NotFound);
+    return deleted ? Result.Success() : Error.NotFound();
   }
 
   private Task<WorkspaceRole?> FindRoleAsync(
@@ -294,117 +254,21 @@ public sealed class ProjectService(
     CancellationToken cancellationToken) =>
     workspaces.FindUserRoleAsync(workspaceId, userId, cancellationToken);
 
-  private static bool CanManageProject(
-    WorkspaceRole role,
-    Project project,
-    Guid userId) =>
-    role == WorkspaceRole.Owner || project.ProjectOwnerId == userId;
-
-  private static ProjectStatus? ParseStatus(
-    string? status,
-    out string? error)
-  {
-    error = null;
-
-    if (string.IsNullOrWhiteSpace(status))
-    {
-      return null;
-    }
-
-    if (Enum.TryParse<ProjectStatus>(status, true, out var parsed))
-    {
-      return parsed;
-    }
-
-    error = "Project status must be ACTIVE, ARCHIVED, or COMPLETED.";
-    return null;
-  }
-
-  private static Dictionary<string, string[]> ValidateCreate(
-    CreateProjectRequest request)
-  {
-    return ValidateFields(
-      request.Name,
-      request.Description,
-      request.Key,
-      request.Icon,
-      request.Color);
-  }
-
-  private static Dictionary<string, string[]> ValidateUpdate(ProjectUpdate update)
-  {
-    return ValidateFields(
-      update.Name,
-      update.Description,
-      update.Key,
-      update.Icon,
-      update.Color);
-  }
-
-  private static Dictionary<string, string[]> ValidateFields(
+  private static ValidationErrors ValidateFields(
     string? name,
     string? description,
     string? key,
     string? icon,
-    string? color)
-  {
-    var errors = new Dictionary<string, string[]>();
+    string? color) =>
+    new ValidationErrors()
+      .Required("Name", name, "Project name", minLength: 2, maxLength: 100)
+      .MaxLength("Description", description, "Project description", 500)
+      .MaxLength("Key", key, "Project key", 12)
+      .MaxLength("Icon", icon, "Project icon", 16)
+      .MaxLength("Color", color, "Project color", 32);
 
-    if (string.IsNullOrWhiteSpace(name))
-    {
-      errors["Name"] = ["Project name is required."];
-    }
-    else if (name.Trim().Length < 2)
-    {
-      errors["Name"] = ["Project name must be at least 2 characters."];
-    }
-    else if (name.Trim().Length > 100)
-    {
-      errors["Name"] = ["Project name must be 100 characters or fewer."];
-    }
-
-    if (description?.Trim().Length > 500)
-    {
-      errors["Description"] = [
-        "Project description must be 500 characters or fewer."
-      ];
-    }
-
-    if (key?.Trim().Length > 12)
-    {
-      errors["Key"] = ["Project key must be 12 characters or fewer."];
-    }
-
-    if (icon?.Trim().Length > 16)
-    {
-      errors["Icon"] = ["Project icon must be 16 characters or fewer."];
-    }
-
-    if (color?.Trim().Length > 32)
-    {
-      errors["Color"] = ["Project color must be 32 characters or fewer."];
-    }
-
-    return errors;
-  }
-
-  private static string? NormalizeRequiredText(string? value)
-  {
-    var normalized = value?.Trim();
-    return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
-  }
-
-  private static string? NormalizeText(string? value)
-  {
-    var normalized = value?.Trim();
-    return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
-  }
-
-  private static string? NormalizeKey(string? value)
-  {
-    var normalized = NormalizeText(value);
-    return normalized?.ToUpperInvariant();
-  }
+  private static string? NormalizeKey(string? value) =>
+    TextNormalizer.TrimToNull(value)?.ToUpperInvariant();
 
   private static ProjectResponse ToResponse(Project project) =>
     new(
@@ -417,7 +281,7 @@ public sealed class ProjectService(
       project.WorkspaceId,
       project.ProjectOwnerId,
       project.ProjectOwnerName,
-      project.Status.ToString().ToUpperInvariant(),
+      EnumCode.Format(project.Status),
       project.CreatedAt,
       project.UpdatedAt,
       project.ArchivedAt);

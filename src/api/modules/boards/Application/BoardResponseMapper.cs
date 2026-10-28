@@ -1,5 +1,6 @@
 using Coordina.Api.Modules.Boards.Contracts;
 using Coordina.Api.Modules.Boards.Domain;
+using Coordina.Api.Shared.Enums;
 
 namespace Coordina.Api.Modules.Boards.Application;
 
@@ -10,7 +11,7 @@ internal static class BoardResponseMapper
       board.Id,
       board.ProjectId,
       board.Name,
-      ToApiTemplate(board.Template),
+      EnumCode.Format(board.Template),
       board.CreatedAt,
       board.UpdatedAt,
       board.Lists
@@ -24,7 +25,7 @@ internal static class BoardResponseMapper
       list.BoardId,
       list.Title,
       list.Position,
-      BoardTaskStatusCodec.Format(list.TaskStatus),
+      EnumCode.Format(list.TaskStatus),
       list.CreatedAt,
       list.UpdatedAt,
       list.Cards
@@ -39,7 +40,7 @@ internal static class BoardResponseMapper
       card.ListId,
       card.Title,
       card.Description,
-      card.Priority?.ToString().ToUpperInvariant(),
+      card.Priority is null ? null : EnumCode.Format(card.Priority.Value),
       card.DueDate,
       card.EstimatedMinutes,
       card.Labels,
@@ -86,16 +87,4 @@ internal static class BoardResponseMapper
 
   private static BoardCardUserResponse ToUserResponse(ProjectBoardCardUser user) =>
     new(user.UserId, user.Name, user.Email);
-
-  private static string ToApiTemplate(BoardTemplate template)
-  {
-    return template switch
-    {
-      BoardTemplate.AgileScrum => "AGILE_SCRUM",
-      BoardTemplate.BugTracking => "BUG_TRACKING",
-      BoardTemplate.ProductRoadmap => "PRODUCT_ROADMAP",
-      BoardTemplate.Custom => "CUSTOM",
-      _ => "BASIC"
-    };
-  }
 }

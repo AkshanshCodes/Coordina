@@ -1,4 +1,5 @@
 using Coordina.Api.Modules.Workspaces.Domain;
+using Coordina.Api.Shared.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -27,8 +28,8 @@ public sealed class WorkspaceMemberEntityConfiguration
     builder.Property(member => member.Role)
       .HasColumnName("role")
       .HasConversion(
-        role => role.ToString().ToUpperInvariant(),
-        value => Enum.Parse<WorkspaceRole>(value, true))
+        role => EnumCode.Format(role),
+        value => EnumCode.Parse<WorkspaceRole>(value))
       .HasMaxLength(16)
       .IsRequired();
 

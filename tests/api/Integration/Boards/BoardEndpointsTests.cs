@@ -1,29 +1,26 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Coordina.Api.Tests.Support;
 
 namespace Coordina.Api.Tests;
 
 public sealed class BoardEndpointsTests(ApiTestApplicationFactory factory)
-  : IClassFixture<ApiTestApplicationFactory>
+  : ApiTest(factory)
 {
   private static readonly string[] BackendLabels = ["backend"];
   private static readonly string[] DetailedLabels = ["backend", "review"];
 
-  private readonly HttpClient _client = factory.CreateClient();
-
   [Fact]
   public async Task CreateBoard_WithTemplate_GeneratesDefaultListsAndStarterCards()
   {
-    var owner = await RegisterAsync();
-    var workspace = await CreateWorkspaceAsync(owner.AccessToken, "Board Team");
-    var project = await CreateProjectAsync(
+    var owner = await Api.RegisterAsync();
+    var workspace = await Api.CreateWorkspaceAsync(owner.AccessToken, "Board Team");
+    var project = await Api.CreateProjectAsync(
       owner.AccessToken,
       workspace.Id,
       "Delivery");
 
-    var response = await SendAsAsync(
+    var response = await Api.SendAsync(
       HttpMethod.Post,
       $"/workspaces/{workspace.Id}/projects/{project.Id}/boards",
       owner.AccessToken,
@@ -53,14 +50,14 @@ public sealed class BoardEndpointsTests(ApiTestApplicationFactory factory)
   [Fact]
   public async Task CreateBoard_WithCustomTemplate_UsesUserListsWithoutStarterCards()
   {
-    var owner = await RegisterAsync();
-    var workspace = await CreateWorkspaceAsync(owner.AccessToken, "Custom Team");
-    var project = await CreateProjectAsync(
+    var owner = await Api.RegisterAsync();
+    var workspace = await Api.CreateWorkspaceAsync(owner.AccessToken, "Custom Team");
+    var project = await Api.CreateProjectAsync(
       owner.AccessToken,
       workspace.Id,
       "Custom Board");
 
-    var board = await CreateBoardAsync(
+    var board = await Api.CreateBoardAsync(
       owner.AccessToken,
       workspace.Id,
       project.Id,
@@ -77,16 +74,16 @@ public sealed class BoardEndpointsTests(ApiTestApplicationFactory factory)
   [Fact]
   public async Task GetDefaultBoard_ReturnsFullBoardStructure()
   {
-    var owner = await RegisterAsync();
-    var member = await RegisterAsync();
-    var workspace = await CreateWorkspaceAsync(owner.AccessToken, "Full Team");
-    var invite = await CreateInviteAsync(owner.AccessToken, workspace.Id);
-    await JoinWorkspaceAsync(member.AccessToken, invite.Code);
-    var project = await CreateProjectAsync(
+    var owner = await Api.RegisterAsync();
+    var member = await Api.RegisterAsync();
+    var workspace = await Api.CreateWorkspaceAsync(owner.AccessToken, "Full Team");
+    var invite = await Api.CreateInviteAsync(owner.AccessToken, workspace.Id);
+    await Api.JoinWorkspaceAsync(member.AccessToken, invite.Code);
+    var project = await Api.CreateProjectAsync(
       owner.AccessToken,
       workspace.Id,
       "Board");
-    var board = await CreateBoardAsync(
+    var board = await Api.CreateBoardAsync(
       owner.AccessToken,
       workspace.Id,
       project.Id,
@@ -101,7 +98,7 @@ public sealed class BoardEndpointsTests(ApiTestApplicationFactory factory)
       "Assigned card",
       member.User.Id);
 
-    var loaded = await GetDefaultBoardAsync(
+    var loaded = await Api.GetDefaultBoardAsync(
       member.AccessToken,
       workspace.Id,
       project.Id);
@@ -116,13 +113,13 @@ public sealed class BoardEndpointsTests(ApiTestApplicationFactory factory)
   [Fact]
   public async Task MoveCard_ChangesListForDragAndDrop()
   {
-    var owner = await RegisterAsync();
-    var workspace = await CreateWorkspaceAsync(owner.AccessToken, "Move Team");
-    var project = await CreateProjectAsync(
+    var owner = await Api.RegisterAsync();
+    var workspace = await Api.CreateWorkspaceAsync(owner.AccessToken, "Move Team");
+    var project = await Api.CreateProjectAsync(
       owner.AccessToken,
       workspace.Id,
       "Board");
-    var board = await CreateBoardAsync(
+    var board = await Api.CreateBoardAsync(
       owner.AccessToken,
       workspace.Id,
       project.Id,
@@ -156,23 +153,23 @@ public sealed class BoardEndpointsTests(ApiTestApplicationFactory factory)
   [Fact]
   public async Task UpdateCard_WithPartialPayload_PreservesExistingDetails()
   {
-    var owner = await RegisterAsync();
-    var member = await RegisterAsync();
-    var workspace = await CreateWorkspaceAsync(owner.AccessToken, "Patch Team");
-    var invite = await CreateInviteAsync(owner.AccessToken, workspace.Id);
-    await JoinWorkspaceAsync(member.AccessToken, invite.Code);
-    var project = await CreateProjectAsync(
+    var owner = await Api.RegisterAsync();
+    var member = await Api.RegisterAsync();
+    var workspace = await Api.CreateWorkspaceAsync(owner.AccessToken, "Patch Team");
+    var invite = await Api.CreateInviteAsync(owner.AccessToken, workspace.Id);
+    await Api.JoinWorkspaceAsync(member.AccessToken, invite.Code);
+    var project = await Api.CreateProjectAsync(
       owner.AccessToken,
       workspace.Id,
       "Board");
-    var board = await CreateBoardAsync(
+    var board = await Api.CreateBoardAsync(
       owner.AccessToken,
       workspace.Id,
       project.Id,
       "CUSTOM");
     var list = board.Lists.First();
     var dueDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(3));
-    var created = await SendAsAsync(
+    var created = await Api.SendAsync(
       HttpMethod.Post,
       $"/workspaces/{workspace.Id}/projects/{project.Id}/boards/{board.Id}/lists/{list.Id}/cards",
       owner.AccessToken,
@@ -191,7 +188,7 @@ public sealed class BoardEndpointsTests(ApiTestApplicationFactory factory)
     Assert.NotNull(withCard);
     var card = withCard.Lists.Single(item => item.Id == list.Id).Cards.Single();
 
-    var updateResponse = await SendAsAsync(
+    var updateResponse = await Api.SendAsync(
       HttpMethod.Patch,
       $"/workspaces/{workspace.Id}/projects/{project.Id}/boards/{board.Id}/cards/{card.Id}",
       owner.AccessToken,
@@ -217,16 +214,16 @@ public sealed class BoardEndpointsTests(ApiTestApplicationFactory factory)
   [Fact]
   public async Task UpdateCard_WithNewAssignee_AssignsWorkspaceMember()
   {
-    var owner = await RegisterAsync();
-    var member = await RegisterAsync();
-    var workspace = await CreateWorkspaceAsync(owner.AccessToken, "Assignment Team");
-    var invite = await CreateInviteAsync(owner.AccessToken, workspace.Id);
-    await JoinWorkspaceAsync(member.AccessToken, invite.Code);
-    var project = await CreateProjectAsync(
+    var owner = await Api.RegisterAsync();
+    var member = await Api.RegisterAsync();
+    var workspace = await Api.CreateWorkspaceAsync(owner.AccessToken, "Assignment Team");
+    var invite = await Api.CreateInviteAsync(owner.AccessToken, workspace.Id);
+    await Api.JoinWorkspaceAsync(member.AccessToken, invite.Code);
+    var project = await Api.CreateProjectAsync(
       owner.AccessToken,
       workspace.Id,
       "Board");
-    var board = await CreateBoardAsync(
+    var board = await Api.CreateBoardAsync(
       owner.AccessToken,
       workspace.Id,
       project.Id,
@@ -243,7 +240,7 @@ public sealed class BoardEndpointsTests(ApiTestApplicationFactory factory)
 
     Assert.Empty(card.Assignees);
 
-    var updateResponse = await SendAsAsync(
+    var updateResponse = await Api.SendAsync(
       HttpMethod.Patch,
       $"/workspaces/{workspace.Id}/projects/{project.Id}/boards/{board.Id}/cards/{card.Id}",
       owner.AccessToken,
@@ -264,20 +261,20 @@ public sealed class BoardEndpointsTests(ApiTestApplicationFactory factory)
   [Fact]
   public async Task UpdateCard_WithClearDueDate_RemovesExistingDueDate()
   {
-    var owner = await RegisterAsync();
-    var workspace = await CreateWorkspaceAsync(owner.AccessToken, "Clear Date Team");
-    var project = await CreateProjectAsync(
+    var owner = await Api.RegisterAsync();
+    var workspace = await Api.CreateWorkspaceAsync(owner.AccessToken, "Clear Date Team");
+    var project = await Api.CreateProjectAsync(
       owner.AccessToken,
       workspace.Id,
       "Board");
-    var board = await CreateBoardAsync(
+    var board = await Api.CreateBoardAsync(
       owner.AccessToken,
       workspace.Id,
       project.Id,
       "CUSTOM");
     var list = board.Lists.First();
     var dueDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(5));
-    var created = await SendAsAsync(
+    var created = await Api.SendAsync(
       HttpMethod.Post,
       $"/workspaces/{workspace.Id}/projects/{project.Id}/boards/{board.Id}/lists/{list.Id}/cards",
       owner.AccessToken,
@@ -292,7 +289,7 @@ public sealed class BoardEndpointsTests(ApiTestApplicationFactory factory)
     Assert.NotNull(withCard);
     var card = withCard.Lists.Single(item => item.Id == list.Id).Cards.Single();
 
-    var updateResponse = await SendAsAsync(
+    var updateResponse = await Api.SendAsync(
       HttpMethod.Patch,
       $"/workspaces/{workspace.Id}/projects/{project.Id}/boards/{board.Id}/cards/{card.Id}",
       owner.AccessToken,
@@ -313,13 +310,13 @@ public sealed class BoardEndpointsTests(ApiTestApplicationFactory factory)
   [Fact]
   public async Task CardCollaborationEndpoints_PersistCompletionCommentsSubtasksAndDependencies()
   {
-    var owner = await RegisterAsync();
-    var workspace = await CreateWorkspaceAsync(owner.AccessToken, "Collab Team");
-    var project = await CreateProjectAsync(
+    var owner = await Api.RegisterAsync();
+    var workspace = await Api.CreateWorkspaceAsync(owner.AccessToken, "Collab Team");
+    var project = await Api.CreateProjectAsync(
       owner.AccessToken,
       workspace.Id,
       "Board");
-    var board = await CreateBoardAsync(
+    var board = await Api.CreateBoardAsync(
       owner.AccessToken,
       workspace.Id,
       project.Id,
@@ -343,7 +340,7 @@ public sealed class BoardEndpointsTests(ApiTestApplicationFactory factory)
     var secondCard = secondBoard.Lists.First().Cards
       .Single(card => card.Title == "Dependency target");
 
-    var completedResponse = await SendAsAsync(
+    var completedResponse = await Api.SendAsync(
       HttpMethod.Patch,
       $"/workspaces/{workspace.Id}/projects/{project.Id}/boards/{board.Id}/cards/{firstCard.Id}",
       owner.AccessToken,
@@ -354,14 +351,14 @@ public sealed class BoardEndpointsTests(ApiTestApplicationFactory factory)
       });
     completedResponse.EnsureSuccessStatusCode();
 
-    var commentResponse = await SendAsAsync(
+    var commentResponse = await Api.SendAsync(
       HttpMethod.Post,
       $"/workspaces/{workspace.Id}/projects/{project.Id}/boards/{board.Id}/cards/{firstCard.Id}/comments",
       owner.AccessToken,
       new { body = "Ship it after QA signs off." });
     commentResponse.EnsureSuccessStatusCode();
 
-    var subtaskResponse = await SendAsAsync(
+    var subtaskResponse = await Api.SendAsync(
       HttpMethod.Post,
       $"/workspaces/{workspace.Id}/projects/{project.Id}/boards/{board.Id}/cards/{firstCard.Id}/subtasks",
       owner.AccessToken,
@@ -375,21 +372,21 @@ public sealed class BoardEndpointsTests(ApiTestApplicationFactory factory)
       .Subtasks
       .Single();
 
-    var updateSubtaskResponse = await SendAsAsync(
+    var updateSubtaskResponse = await Api.SendAsync(
       HttpMethod.Patch,
       $"/workspaces/{workspace.Id}/projects/{project.Id}/boards/{board.Id}/cards/{firstCard.Id}/subtasks/{subtask.Id}",
       owner.AccessToken,
       new { isCompleted = true });
     updateSubtaskResponse.EnsureSuccessStatusCode();
 
-    var dependencyResponse = await SendAsAsync(
+    var dependencyResponse = await Api.SendAsync(
       HttpMethod.Post,
       $"/workspaces/{workspace.Id}/projects/{project.Id}/boards/{board.Id}/cards/{firstCard.Id}/dependencies",
       owner.AccessToken,
       new { dependsOnCardId = secondCard.Id });
     dependencyResponse.EnsureSuccessStatusCode();
 
-    var loaded = await GetDefaultBoardAsync(
+    var loaded = await Api.GetDefaultBoardAsync(
       owner.AccessToken,
       workspace.Id,
       project.Id);
@@ -411,13 +408,13 @@ public sealed class BoardEndpointsTests(ApiTestApplicationFactory factory)
   [Fact]
   public async Task AddCardDependency_WhenItWouldCreateCycle_ReturnsConflict()
   {
-    var owner = await RegisterAsync();
-    var workspace = await CreateWorkspaceAsync(owner.AccessToken, "Graph Team");
-    var project = await CreateProjectAsync(
+    var owner = await Api.RegisterAsync();
+    var workspace = await Api.CreateWorkspaceAsync(owner.AccessToken, "Graph Team");
+    var project = await Api.CreateProjectAsync(
       owner.AccessToken,
       workspace.Id,
       "Graph Board");
-    var board = await CreateBoardAsync(
+    var board = await Api.CreateBoardAsync(
       owner.AccessToken,
       workspace.Id,
       project.Id,
@@ -441,14 +438,14 @@ public sealed class BoardEndpointsTests(ApiTestApplicationFactory factory)
     var secondCard = withSecondCard.Lists.First().Cards
       .Single(card => card.Title == "Prepare database");
 
-    var dependencyResponse = await SendAsAsync(
+    var dependencyResponse = await Api.SendAsync(
       HttpMethod.Post,
       $"/workspaces/{workspace.Id}/projects/{project.Id}/boards/{board.Id}/cards/{firstCard.Id}/dependencies",
       owner.AccessToken,
       new { dependsOnCardId = secondCard.Id });
     dependencyResponse.EnsureSuccessStatusCode();
 
-    var cycleResponse = await SendAsAsync(
+    var cycleResponse = await Api.SendAsync(
       HttpMethod.Post,
       $"/workspaces/{workspace.Id}/projects/{project.Id}/boards/{board.Id}/cards/{secondCard.Id}/dependencies",
       owner.AccessToken,
@@ -460,13 +457,13 @@ public sealed class BoardEndpointsTests(ApiTestApplicationFactory factory)
   [Fact]
   public async Task DependencyGraphEndpoints_ReturnPlanningSignals()
   {
-    var owner = await RegisterAsync();
-    var workspace = await CreateWorkspaceAsync(owner.AccessToken, "Signals Team");
-    var project = await CreateProjectAsync(
+    var owner = await Api.RegisterAsync();
+    var workspace = await Api.CreateWorkspaceAsync(owner.AccessToken, "Signals Team");
+    var project = await Api.CreateProjectAsync(
       owner.AccessToken,
       workspace.Id,
       "Signals Board");
-    var board = await CreateBoardAsync(
+    var board = await Api.CreateBoardAsync(
       owner.AccessToken,
       workspace.Id,
       project.Id,
@@ -499,21 +496,21 @@ public sealed class BoardEndpointsTests(ApiTestApplicationFactory factory)
     var ui = withUi.Lists.First().Cards
       .Single(card => card.Title == "Frontend panel");
 
-    var apiDependencyResponse = await SendAsAsync(
+    var apiDependencyResponse = await Api.SendAsync(
       HttpMethod.Post,
       $"/workspaces/{workspace.Id}/projects/{project.Id}/boards/{board.Id}/cards/{api.Id}/dependencies",
       owner.AccessToken,
       new { dependsOnCardId = database.Id });
     apiDependencyResponse.EnsureSuccessStatusCode();
 
-    var uiDependencyResponse = await SendAsAsync(
+    var uiDependencyResponse = await Api.SendAsync(
       HttpMethod.Post,
       $"/workspaces/{workspace.Id}/projects/{project.Id}/boards/{board.Id}/cards/{ui.Id}/dependencies",
       owner.AccessToken,
       new { dependsOnCardId = api.Id });
     uiDependencyResponse.EnsureSuccessStatusCode();
 
-    var graphResponse = await SendAsAsync(
+    var graphResponse = await Api.SendAsync(
       HttpMethod.Get,
       $"/workspaces/{workspace.Id}/projects/{project.Id}/boards/{board.Id}/graph",
       owner.AccessToken);
@@ -541,7 +538,7 @@ public sealed class BoardEndpointsTests(ApiTestApplicationFactory factory)
     Assert.Contains("Critical path", firstPlanItem.Reasons);
     Assert.Contains("Unlocks 2", firstPlanItem.Reasons);
 
-    var analysisResponse = await SendAsAsync(
+    var analysisResponse = await Api.SendAsync(
       HttpMethod.Get,
       $"/workspaces/{workspace.Id}/projects/{project.Id}/boards/{board.Id}/cards/{api.Id}/dependency-analysis",
       owner.AccessToken);
@@ -567,25 +564,25 @@ public sealed class BoardEndpointsTests(ApiTestApplicationFactory factory)
   [Fact]
   public async Task BoardMutations_OnCompletedProject_ReturnConflict()
   {
-    var owner = await RegisterAsync();
-    var workspace = await CreateWorkspaceAsync(owner.AccessToken, "Readonly Team");
-    var project = await CreateProjectAsync(
+    var owner = await Api.RegisterAsync();
+    var workspace = await Api.CreateWorkspaceAsync(owner.AccessToken, "Readonly Team");
+    var project = await Api.CreateProjectAsync(
       owner.AccessToken,
       workspace.Id,
       "Completed board");
-    var board = await CreateBoardAsync(
+    var board = await Api.CreateBoardAsync(
       owner.AccessToken,
       workspace.Id,
       project.Id,
       "CUSTOM");
     var list = board.Lists.First();
-    await UpdateProjectAsync(
+    await Api.UpdateProjectAsync(
       owner.AccessToken,
       workspace.Id,
       project.Id,
       new { status = "COMPLETED" });
 
-    var response = await SendAsAsync(
+    var response = await Api.SendAsync(
       HttpMethod.Post,
       $"/workspaces/{workspace.Id}/projects/{project.Id}/boards/{board.Id}/lists/{list.Id}/cards",
       owner.AccessToken,
@@ -597,25 +594,25 @@ public sealed class BoardEndpointsTests(ApiTestApplicationFactory factory)
   [Fact]
   public async Task BoardOperations_ForNonMember_ReturnNotFound()
   {
-    var owner = await RegisterAsync();
-    var outsider = await RegisterAsync();
-    var workspace = await CreateWorkspaceAsync(owner.AccessToken, "Private Team");
-    var project = await CreateProjectAsync(
+    var owner = await Api.RegisterAsync();
+    var outsider = await Api.RegisterAsync();
+    var workspace = await Api.CreateWorkspaceAsync(owner.AccessToken, "Private Team");
+    var project = await Api.CreateProjectAsync(
       owner.AccessToken,
       workspace.Id,
       "Private");
-    var board = await CreateBoardAsync(
+    var board = await Api.CreateBoardAsync(
       owner.AccessToken,
       workspace.Id,
       project.Id,
       "BASIC");
     var list = board.Lists.First();
 
-    var getResponse = await SendAsAsync(
+    var getResponse = await Api.SendAsync(
       HttpMethod.Get,
       $"/workspaces/{workspace.Id}/projects/{project.Id}/board",
       outsider.AccessToken);
-    var createResponse = await SendAsAsync(
+    var createResponse = await Api.SendAsync(
       HttpMethod.Post,
       $"/workspaces/{workspace.Id}/projects/{project.Id}/boards/{board.Id}/lists/{list.Id}/cards",
       outsider.AccessToken,
@@ -628,24 +625,24 @@ public sealed class BoardEndpointsTests(ApiTestApplicationFactory factory)
   [Fact]
   public async Task BoardOperations_WithWrongProjectScope_ReturnNotFound()
   {
-    var owner = await RegisterAsync();
-    var workspace = await CreateWorkspaceAsync(owner.AccessToken, "Scope Team");
-    var firstProject = await CreateProjectAsync(
+    var owner = await Api.RegisterAsync();
+    var workspace = await Api.CreateWorkspaceAsync(owner.AccessToken, "Scope Team");
+    var firstProject = await Api.CreateProjectAsync(
       owner.AccessToken,
       workspace.Id,
       "First");
-    var secondProject = await CreateProjectAsync(
+    var secondProject = await Api.CreateProjectAsync(
       owner.AccessToken,
       workspace.Id,
       "Second");
-    var board = await CreateBoardAsync(
+    var board = await Api.CreateBoardAsync(
       owner.AccessToken,
       workspace.Id,
       firstProject.Id,
       "CUSTOM");
     var list = board.Lists.First();
 
-    var response = await SendAsAsync(
+    var response = await Api.SendAsync(
       HttpMethod.Post,
       $"/workspaces/{workspace.Id}/projects/{secondProject.Id}/boards/{board.Id}/lists/{list.Id}/cards",
       owner.AccessToken,
@@ -657,21 +654,21 @@ public sealed class BoardEndpointsTests(ApiTestApplicationFactory factory)
   [Fact]
   public async Task AssigningNonMember_ReturnsValidationProblem()
   {
-    var owner = await RegisterAsync();
-    var outsider = await RegisterAsync();
-    var workspace = await CreateWorkspaceAsync(owner.AccessToken, "Assign Team");
-    var project = await CreateProjectAsync(
+    var owner = await Api.RegisterAsync();
+    var outsider = await Api.RegisterAsync();
+    var workspace = await Api.CreateWorkspaceAsync(owner.AccessToken, "Assign Team");
+    var project = await Api.CreateProjectAsync(
       owner.AccessToken,
       workspace.Id,
       "Board");
-    var board = await CreateBoardAsync(
+    var board = await Api.CreateBoardAsync(
       owner.AccessToken,
       workspace.Id,
       project.Id,
       "CUSTOM");
     var list = board.Lists.First();
 
-    var response = await SendAsAsync(
+    var response = await Api.SendAsync(
       HttpMethod.Post,
       $"/workspaces/{workspace.Id}/projects/{project.Id}/boards/{board.Id}/lists/{list.Id}/cards",
       owner.AccessToken,
@@ -687,20 +684,20 @@ public sealed class BoardEndpointsTests(ApiTestApplicationFactory factory)
   [Fact]
   public async Task CreatingCard_WithPastDueDate_ReturnsValidationProblem()
   {
-    var owner = await RegisterAsync();
-    var workspace = await CreateWorkspaceAsync(owner.AccessToken, "Date Team");
-    var project = await CreateProjectAsync(
+    var owner = await Api.RegisterAsync();
+    var workspace = await Api.CreateWorkspaceAsync(owner.AccessToken, "Date Team");
+    var project = await Api.CreateProjectAsync(
       owner.AccessToken,
       workspace.Id,
       "Board");
-    var board = await CreateBoardAsync(
+    var board = await Api.CreateBoardAsync(
       owner.AccessToken,
       workspace.Id,
       project.Id,
       "CUSTOM");
     var list = board.Lists.First();
 
-    var response = await SendAsAsync(
+    var response = await Api.SendAsync(
       HttpMethod.Post,
       $"/workspaces/{workspace.Id}/projects/{project.Id}/boards/{board.Id}/lists/{list.Id}/cards",
       owner.AccessToken,
@@ -716,16 +713,16 @@ public sealed class BoardEndpointsTests(ApiTestApplicationFactory factory)
   [Fact]
   public async Task Member_CannotDeleteCard_WhenNotProjectOwner()
   {
-    var owner = await RegisterAsync();
-    var member = await RegisterAsync();
-    var workspace = await CreateWorkspaceAsync(owner.AccessToken, "Delete Team");
-    var invite = await CreateInviteAsync(owner.AccessToken, workspace.Id);
-    await JoinWorkspaceAsync(member.AccessToken, invite.Code);
-    var project = await CreateProjectAsync(
+    var owner = await Api.RegisterAsync();
+    var member = await Api.RegisterAsync();
+    var workspace = await Api.CreateWorkspaceAsync(owner.AccessToken, "Delete Team");
+    var invite = await Api.CreateInviteAsync(owner.AccessToken, workspace.Id);
+    await Api.JoinWorkspaceAsync(member.AccessToken, invite.Code);
+    var project = await Api.CreateProjectAsync(
       owner.AccessToken,
       workspace.Id,
       "Board");
-    var board = await CreateBoardAsync(
+    var board = await Api.CreateBoardAsync(
       owner.AccessToken,
       workspace.Id,
       project.Id,
@@ -740,133 +737,12 @@ public sealed class BoardEndpointsTests(ApiTestApplicationFactory factory)
       "Protected");
     var card = withCard.Lists.First().Cards.First();
 
-    var response = await SendAsAsync(
+    var response = await Api.SendAsync(
       HttpMethod.Delete,
       $"/workspaces/{workspace.Id}/projects/{project.Id}/boards/{board.Id}/cards/{card.Id}",
       member.AccessToken);
 
     Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
-  }
-
-  private async Task<AuthResponse> RegisterAsync()
-  {
-    var email = $"board-{Guid.NewGuid():N}@coordina.test";
-
-    var response = await _client.PostAsJsonAsync("/auth/register", new
-    {
-      name = "Board Tester",
-      email,
-      password = "Password123!"
-    });
-
-    response.EnsureSuccessStatusCode();
-
-    var payload = await response.Content.ReadFromJsonAsync<AuthResponse>();
-
-    Assert.NotNull(payload);
-    return payload;
-  }
-
-  private async Task<WorkspaceResponse> CreateWorkspaceAsync(
-    string accessToken,
-    string name)
-  {
-    var response = await SendAsAsync(
-      HttpMethod.Post,
-      "/workspaces",
-      accessToken,
-      new { name });
-
-    response.EnsureSuccessStatusCode();
-
-    var payload = await response.Content.ReadFromJsonAsync<WorkspaceResponse>();
-
-    Assert.NotNull(payload);
-    return payload;
-  }
-
-  private async Task<ProjectResponse> CreateProjectAsync(
-    string accessToken,
-    string workspaceId,
-    string name,
-    string? projectOwnerId = null)
-  {
-    var response = await SendAsAsync(
-      HttpMethod.Post,
-      $"/workspaces/{workspaceId}/projects",
-      accessToken,
-      new { name, projectOwnerId });
-
-    response.EnsureSuccessStatusCode();
-
-    var payload = await response.Content.ReadFromJsonAsync<ProjectResponse>();
-
-    Assert.NotNull(payload);
-    return payload;
-  }
-
-  private async Task<ProjectResponse> UpdateProjectAsync(
-    string accessToken,
-    string workspaceId,
-    string projectId,
-    object input)
-  {
-    var response = await SendAsAsync(
-      HttpMethod.Patch,
-      $"/workspaces/{workspaceId}/projects/{projectId}",
-      accessToken,
-      input);
-
-    response.EnsureSuccessStatusCode();
-
-    var payload = await response.Content.ReadFromJsonAsync<ProjectResponse>();
-
-    Assert.NotNull(payload);
-    return payload;
-  }
-
-  private async Task<BoardResponse> CreateBoardAsync(
-    string accessToken,
-    string workspaceId,
-    string projectId,
-    string template,
-    string[]? customListTitles = null)
-  {
-    var response = await SendAsAsync(
-      HttpMethod.Post,
-      $"/workspaces/{workspaceId}/projects/{projectId}/boards",
-      accessToken,
-      new
-      {
-        name = "Project board",
-        template,
-        customListTitles = customListTitles ?? ["To Do", "In Progress", "Done"]
-      });
-
-    response.EnsureSuccessStatusCode();
-
-    var payload = await response.Content.ReadFromJsonAsync<BoardResponse>();
-
-    Assert.NotNull(payload);
-    return payload;
-  }
-
-  private async Task<BoardResponse> GetDefaultBoardAsync(
-    string accessToken,
-    string workspaceId,
-    string projectId)
-  {
-    var response = await SendAsAsync(
-      HttpMethod.Get,
-      $"/workspaces/{workspaceId}/projects/{projectId}/board",
-      accessToken);
-
-    response.EnsureSuccessStatusCode();
-
-    var payload = await response.Content.ReadFromJsonAsync<BoardResponse>();
-
-    Assert.NotNull(payload);
-    return payload;
   }
 
   private async Task<BoardResponse> CreateCardAsync(
@@ -878,7 +754,7 @@ public sealed class BoardEndpointsTests(ApiTestApplicationFactory factory)
     string title,
     string? assigneeId = null)
   {
-    var response = await SendAsAsync(
+    var response = await Api.SendAsync(
       HttpMethod.Post,
       $"/workspaces/{workspaceId}/projects/{projectId}/boards/{boardId}/lists/{listId}/cards",
       accessToken,
@@ -906,7 +782,7 @@ public sealed class BoardEndpointsTests(ApiTestApplicationFactory factory)
     string cardId,
     string listId)
   {
-    var response = await SendAsAsync(
+    var response = await Api.SendAsync(
       HttpMethod.Patch,
       $"/workspaces/{workspaceId}/projects/{projectId}/boards/{boardId}/cards/{cardId}/move",
       accessToken,
@@ -919,207 +795,4 @@ public sealed class BoardEndpointsTests(ApiTestApplicationFactory factory)
     Assert.NotNull(payload);
     return payload;
   }
-
-  private async Task<WorkspaceResponse> JoinWorkspaceAsync(
-    string accessToken,
-    string inviteCode)
-  {
-    var response = await SendAsAsync(
-      HttpMethod.Post,
-      "/workspaces/join",
-      accessToken,
-      new { inviteCode });
-
-    response.EnsureSuccessStatusCode();
-
-    var payload = await response.Content.ReadFromJsonAsync<WorkspaceResponse>();
-
-    Assert.NotNull(payload);
-    return payload;
-  }
-
-  private async Task<CreateWorkspaceInviteResponse> CreateInviteAsync(
-    string accessToken,
-    string workspaceId)
-  {
-    var response = await SendAsAsync(
-      HttpMethod.Post,
-      $"/workspaces/{workspaceId}/invites",
-      accessToken);
-
-    response.EnsureSuccessStatusCode();
-
-    var payload = await response.Content
-      .ReadFromJsonAsync<CreateWorkspaceInviteResponse>();
-
-    Assert.NotNull(payload);
-    return payload;
-  }
-
-  private async Task<HttpResponseMessage> SendAsAsync(
-    HttpMethod method,
-    string path,
-    string accessToken,
-    object? body = null)
-  {
-    using var request = new HttpRequestMessage(method, path);
-    request.Headers.Authorization = new AuthenticationHeaderValue(
-      "Bearer",
-      accessToken);
-
-    if (body is not null)
-    {
-      request.Content = JsonContent.Create(body);
-    }
-
-    return await _client.SendAsync(request);
-  }
-
-  private sealed record AuthResponse(
-    string AccessToken,
-    DateTimeOffset ExpiresAt,
-    CurrentUserResponse User);
-
-  private sealed record CurrentUserResponse(
-    string Id,
-    string Email,
-    string Name);
-
-  private sealed record WorkspaceResponse(
-    string Id,
-    string Name,
-    string Role,
-    DateTimeOffset CreatedAt);
-
-  private sealed record ProjectResponse(
-    string Id,
-    string Name,
-    string? Description,
-    string? Key,
-    string? Icon,
-    string? Color,
-    string WorkspaceId,
-    string ProjectOwnerId,
-    string? ProjectOwnerName,
-    string Status,
-    DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt,
-    DateTimeOffset? ArchivedAt);
-
-  private sealed record BoardResponse(
-    string Id,
-    string ProjectId,
-    string Name,
-    string Template,
-    DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt,
-    IReadOnlyCollection<BoardListResponse> Lists);
-
-  private sealed record BoardListResponse(
-    string Id,
-    string BoardId,
-    string Title,
-    int Position,
-    DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt,
-    IReadOnlyCollection<BoardCardResponse> Cards);
-
-  private sealed record BoardCardResponse(
-    string Id,
-    string BoardId,
-    string ListId,
-    string Title,
-    string? Description,
-    string? Priority,
-    DateOnly? DueDate,
-    IReadOnlyCollection<string> Labels,
-    bool IsCompleted,
-    DateTimeOffset? CompletedAt,
-    BoardCardUserResponse? CompletedBy,
-    int Position,
-    DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt,
-    IReadOnlyCollection<BoardCardAssigneeResponse> Assignees,
-    IReadOnlyCollection<BoardCardCommentResponse> Comments,
-    IReadOnlyCollection<BoardCardSubtaskResponse> Subtasks,
-    IReadOnlyCollection<BoardCardDependencyResponse> Dependencies);
-
-  private sealed record BoardCardUserResponse(
-    string UserId,
-    string? Name,
-    string? Email);
-
-  private sealed record BoardCardAssigneeResponse(
-    string UserId,
-    string? Name,
-    string? Email);
-
-  private sealed record BoardCardCommentResponse(
-    string Id,
-    string CardId,
-    BoardCardUserResponse Author,
-    string Body,
-    DateTimeOffset CreatedAt);
-
-  private sealed record BoardCardSubtaskResponse(
-    string Id,
-    string CardId,
-    string Title,
-    bool IsCompleted,
-    DateTimeOffset? CompletedAt,
-    BoardCardUserResponse? CompletedBy,
-    int Position,
-    DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
-
-  private sealed record BoardCardDependencyResponse(
-    string CardId,
-    string Title,
-    bool IsCompleted);
-
-  private sealed record BoardGraphResponse(
-    string BoardId,
-    bool IsAcyclic,
-    IReadOnlyCollection<BoardGraphCardResponse> ReadyCards,
-    IReadOnlyCollection<BoardGraphCardResponse> UnblockedCards,
-    IReadOnlyCollection<BoardGraphCardResponse> DependencyOrder,
-    IReadOnlyCollection<BoardGraphCardResponse> CriticalPath,
-    IReadOnlyCollection<BoardGraphCardResponse> NextCards,
-    IReadOnlyCollection<BoardGraphPlanItemResponse> PlanItems);
-
-  private sealed record BoardCardDependencyAnalysisResponse(
-    string CardId,
-    bool IsStructurallyReady,
-    bool IsUnblocked,
-    bool IsOnCriticalPath,
-    int DependencyDepth,
-    int DependentDepth,
-    int TransitiveDependentCount,
-    IReadOnlyCollection<BoardGraphCardResponse> BlockingDependencies,
-    IReadOnlyCollection<BoardGraphCardResponse> SuggestedDependencies,
-    IReadOnlyCollection<BoardGraphCardResponse> ImpactedDependents,
-    IReadOnlyCollection<BoardGraphCardResponse> DirectlyUnlockedDependents);
-
-  private sealed record BoardGraphCardResponse(
-    string Id,
-    string ListId,
-    string Title,
-    bool IsCompleted,
-    int DependencyCount,
-    int DependentCount,
-    int DependencyDepth,
-    int DependentDepth,
-    int TransitiveDependentCount,
-    bool IsCriticalPath);
-
-  private sealed record BoardGraphPlanItemResponse(
-    BoardGraphCardResponse Card,
-    int Score,
-    bool IsActionable,
-    int BlockerCount,
-    IReadOnlyCollection<string> Reasons);
-
-  private sealed record CreateWorkspaceInviteResponse(
-    string Code,
-    DateTimeOffset ExpiresAt);
 }

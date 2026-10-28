@@ -1,4 +1,5 @@
 using Coordina.Api.Modules.Boards.Domain;
+using Coordina.Api.Shared.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -42,8 +43,8 @@ public sealed class BoardListEntityConfiguration
     builder.Property(list => list.TaskStatus)
       .HasColumnName("task_status")
       .HasConversion(
-        status => BoardTaskStatusCodec.Format(status),
-        value => BoardTaskStatusCodec.Parse(value))
+        status => EnumCode.Format(status),
+        value => EnumCode.Parse<BoardTaskStatus>(value))
       .HasMaxLength(16)
       .IsRequired();
 

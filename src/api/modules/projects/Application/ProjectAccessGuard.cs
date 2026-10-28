@@ -1,3 +1,4 @@
+using Coordina.Api.Core.Results;
 using Coordina.Api.Modules.Projects.Domain;
 using Coordina.Api.Modules.Workspaces.Application;
 
@@ -7,7 +8,7 @@ public sealed class ProjectAccessGuard(
   IProjectStore projects,
   IWorkspaceStore workspaces) : IProjectAccessGuard
 {
-  public async Task<ProjectAccess?> FindAccessAsync(
+  public async Task<Result<ProjectAccess>> AuthorizeReadAsync(
     Guid workspaceId,
     Guid projectId,
     Guid userId,
@@ -20,7 +21,7 @@ public sealed class ProjectAccessGuard(
 
     if (role is null)
     {
-      return null;
+      return Error.NotFound();
     }
 
     var project = await projects.FindInWorkspaceAsync(
@@ -28,31 +29,28 @@ public sealed class ProjectAccessGuard(
       projectId,
       cancellationToken);
 
-    return project is null ? null : new ProjectAccess(role.Value, project);
+    return project is null
+      ? Error.NotFound()
+      : Result.Success(new ProjectAccess(role.Value, project));
   }
 
-  public async Task<ProjectAccessCheck> FindWritableAccessAsync(
+  public async Task<Result<ProjectAccess>> AuthorizeWriteAsync(
     Guid workspaceId,
     Guid projectId,
     Guid userId,
     CancellationToken cancellationToken)
   {
-    var access = await FindAccessAsync(
+    var access = await AuthorizeReadAsync(
       workspaceId,
       projectId,
       userId,
       cancellationToken);
 
-    if (access is null)
+    if (access.IsSuccess && access.Value.Project.Status == ProjectStatus.Completed)
     {
-      return new ProjectAccessCheck(ProjectAccessStatus.NotFound);
+      return Error.Conflict(ProjectAccess.ReadOnlyMessage);
     }
 
-    if (access.Project.Status == ProjectStatus.Completed)
-    {
-      return new ProjectAccessCheck(ProjectAccessStatus.ProjectReadOnly);
-    }
-
-    return new ProjectAccessCheck(ProjectAccessStatus.Granted, access);
+    return access;
   }
 }

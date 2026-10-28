@@ -28,7 +28,8 @@ internal static class BoardDependencyGraph
   public static BoardGraphAnalysis AnalyzeBoard(
     IGraphEngine<Guid> graphEngine,
     ProjectBoard board,
-    BoardPlanningPreferences preferences)
+    BoardPlanningPreferences preferences,
+    DateOnly today)
   {
     ArgumentNullException.ThrowIfNull(graphEngine);
     ArgumentNullException.ThrowIfNull(board);
@@ -36,7 +37,6 @@ internal static class BoardDependencyGraph
 
     var graph = ToGraph(board);
     var cardsById = graph.Cards.ToDictionary(card => card.Id);
-    var today = DateOnly.FromDateTime(DateTimeOffset.UtcNow.UtcDateTime);
     var inProgressListIds = board.Lists
       .Where(list => list.TaskStatus == BoardTaskStatus.InProgress)
       .Select(list => list.Id)

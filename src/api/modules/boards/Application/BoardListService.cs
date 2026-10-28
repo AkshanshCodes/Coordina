@@ -1,13 +1,16 @@
+using Coordina.Api.Core.Results;
 using Coordina.Api.Modules.Boards.Contracts;
+using Coordina.Api.Modules.Boards.Domain;
 using Coordina.Api.Modules.Projects.Application;
 
 namespace Coordina.Api.Modules.Boards.Application;
 
 public sealed class BoardListService(
   IBoardStore boards,
-  IProjectAccessGuard projectAccess) : IBoardListService
+  IProjectAccessGuard projectAccess,
+  TimeProvider clock) : IBoardListService
 {
-  public async Task<BoardResult<BoardResponse>> CreateListAsync(
+  public async Task<Result<BoardResponse>> CreateListAsync(
     Guid workspaceId,
     Guid projectId,
     Guid boardId,
@@ -15,32 +18,23 @@ public sealed class BoardListService(
     Guid userId,
     CancellationToken cancellationToken)
   {
-    var access = await projectAccess.FindWritableAccessAsync(
+    var access = await projectAccess.AuthorizeWriteAsync(
       workspaceId,
       projectId,
       userId,
       cancellationToken);
 
-    if (access.Status != ProjectAccessStatus.Granted)
+    if (!access.IsSuccess)
     {
-      return BoardResults.AccessFailure<BoardResponse>(access.Status);
+      return access.Error;
     }
 
-    var errors = BoardRules.ValidateList(request.Title);
-    var taskStatus = BoardRules.ParseListStatus(
-      request.TaskStatus,
-      out var statusError);
+    var errors = BoardRules.ValidateList(request.Title)
+      .Code<BoardTaskStatus>("TaskStatus", request.TaskStatus, "List task status", out var taskStatus);
 
-    if (statusError is not null)
+    if (errors.HasErrors)
     {
-      errors["TaskStatus"] = [statusError];
-    }
-
-    if (errors.Count > 0)
-    {
-      return new BoardResult<BoardResponse>(
-        BoardResultStatus.ValidationError,
-        Errors: errors);
+      return errors.ToError();
     }
 
     var board = await boards.CreateListAsync(
@@ -48,18 +42,16 @@ public sealed class BoardListService(
       projectId,
       boardId,
       request.Title!.Trim(),
-      taskStatus,
-      DateTimeOffset.UtcNow,
+      taskStatus ?? BoardTaskStatus.Todo,
+      clock.GetUtcNow(),
       cancellationToken);
 
     return board is null
-      ? new BoardResult<BoardResponse>(BoardResultStatus.NotFound)
-      : new BoardResult<BoardResponse>(
-        BoardResultStatus.Success,
-        BoardResponseMapper.ToResponse(board));
+      ? Error.NotFound()
+      : Result.Success(BoardResponseMapper.ToResponse(board));
   }
 
-  public async Task<BoardResult<BoardResponse>> UpdateListAsync(
+  public async Task<Result<BoardResponse>> UpdateListAsync(
     Guid workspaceId,
     Guid projectId,
     Guid boardId,
@@ -68,24 +60,22 @@ public sealed class BoardListService(
     Guid userId,
     CancellationToken cancellationToken)
   {
-    var access = await projectAccess.FindWritableAccessAsync(
+    var access = await projectAccess.AuthorizeWriteAsync(
       workspaceId,
       projectId,
       userId,
       cancellationToken);
 
-    if (access.Status != ProjectAccessStatus.Granted)
+    if (!access.IsSuccess)
     {
-      return BoardResults.AccessFailure<BoardResponse>(access.Status);
+      return access.Error;
     }
 
     var errors = BoardRules.ValidateList(request.Title);
 
-    if (errors.Count > 0)
+    if (errors.HasErrors)
     {
-      return new BoardResult<BoardResponse>(
-        BoardResultStatus.ValidationError,
-        Errors: errors);
+      return errors.ToError();
     }
 
     var board = await boards.UpdateListAsync(
@@ -94,13 +84,11 @@ public sealed class BoardListService(
       boardId,
       listId,
       request.Title!.Trim(),
-      DateTimeOffset.UtcNow,
+      clock.GetUtcNow(),
       cancellationToken);
 
     return board is null
-      ? new BoardResult<BoardResponse>(BoardResultStatus.NotFound)
-      : new BoardResult<BoardResponse>(
-        BoardResultStatus.Success,
-        BoardResponseMapper.ToResponse(board));
+      ? Error.NotFound()
+      : Result.Success(BoardResponseMapper.ToResponse(board));
   }
 }

@@ -1,5 +1,7 @@
 using System.Text.RegularExpressions;
+using Coordina.Api.Core.Results;
 using Coordina.Api.Modules.Boards.Contracts;
+using Coordina.Api.Shared.Validation;
 
 namespace Coordina.Api.Modules.Boards.Application;
 
@@ -12,40 +14,32 @@ internal sealed partial record BoardPlanningPreferences(
 {
   private const int MaxContextLength = 32;
 
-  public static BoardPlanningPreferences? Parse(
+  public static Result<BoardPlanningPreferences> Parse(
     BoardPlanningRequest request,
-    Guid userId,
-    out Dictionary<string, string[]> errors)
+    Guid userId)
   {
-    errors = [];
     var availableMinutes = request.AvailableMinutes ?? 0;
-
-    if (availableMinutes != 0
-      && availableMinutes is < BoardRules.MinEstimatedMinutes
-        or > BoardRules.MaxEstimatedMinutes)
-    {
-      errors["AvailableMinutes"] = [
-        $"Available minutes must be 0 or between {BoardRules.MinEstimatedMinutes} and {BoardRules.MaxEstimatedMinutes}."
-      ];
-    }
-
     var context = NormalizeContext(request.Context);
+    var errors = new ValidationErrors()
+      .AddIf(
+        availableMinutes != 0
+          && availableMinutes is < BoardRules.MinEstimatedMinutes
+            or > BoardRules.MaxEstimatedMinutes,
+        "AvailableMinutes",
+        $"Available minutes must be 0 or between {BoardRules.MinEstimatedMinutes} and {BoardRules.MaxEstimatedMinutes}.")
+      .AddIf(
+        context?.Length > MaxContextLength,
+        "Context",
+        $"Context must be {MaxContextLength} characters or fewer.");
 
-    if (context?.Length > MaxContextLength)
-    {
-      errors["Context"] = [
-        $"Context must be {MaxContextLength} characters or fewer."
-      ];
-    }
-
-    return errors.Count > 0
-      ? null
-      : new BoardPlanningPreferences(
+    return errors.HasErrors
+      ? errors.ToError()
+      : Result.Success(new BoardPlanningPreferences(
         userId,
         availableMinutes,
         context,
         request.PreferAssigned ?? true,
-        request.IncludeUnassigned ?? true);
+        request.IncludeUnassigned ?? true));
   }
 
   public bool MatchesContext(IEnumerable<string> labels) =>

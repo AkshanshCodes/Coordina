@@ -7,11 +7,13 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace Coordina.Api.Modules.Auth.Infrastructure;
 
-public sealed class JwtAccessTokenIssuer(AuthOptions options) : IAccessTokenIssuer
+public sealed class JwtAccessTokenIssuer(
+  AuthOptions options,
+  TimeProvider clock) : IAccessTokenIssuer
 {
   public IssuedAccessToken Issue(UserAccount user)
   {
-    var expiresAt = DateTimeOffset.UtcNow.AddMinutes(
+    var expiresAt = clock.GetUtcNow().AddMinutes(
       options.AccessTokenMinutes);
     var signingCredentials = new SigningCredentials(
       new SymmetricSecurityKey(Encoding.UTF8.GetBytes(options.SigningKey)),

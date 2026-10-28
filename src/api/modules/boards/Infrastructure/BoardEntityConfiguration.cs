@@ -1,4 +1,5 @@
 using Coordina.Api.Modules.Boards.Domain;
+using Coordina.Api.Shared.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -32,8 +33,8 @@ public sealed class BoardEntityConfiguration
     builder.Property(board => board.Template)
       .HasColumnName("template")
       .HasConversion(
-        template => ToApiTemplate(template),
-        value => ParseTemplate(value))
+        template => EnumCode.Format(template),
+        value => EnumCode.Parse<BoardTemplate>(value))
       .HasMaxLength(24)
       .IsRequired();
 
@@ -52,23 +53,5 @@ public sealed class BoardEntityConfiguration
       .WithMany()
       .HasForeignKey(board => board.ProjectId)
       .OnDelete(DeleteBehavior.Cascade);
-  }
-
-  private static string ToApiTemplate(BoardTemplate template)
-  {
-    return template switch
-    {
-      BoardTemplate.AgileScrum => "AGILE_SCRUM",
-      BoardTemplate.BugTracking => "BUG_TRACKING",
-      BoardTemplate.ProductRoadmap => "PRODUCT_ROADMAP",
-      BoardTemplate.Custom => "CUSTOM",
-      _ => "BASIC"
-    };
-  }
-
-  private static BoardTemplate ParseTemplate(string value)
-  {
-    var normalized = value.Replace("_", string.Empty, StringComparison.Ordinal);
-    return Enum.Parse<BoardTemplate>(normalized, true);
   }
 }

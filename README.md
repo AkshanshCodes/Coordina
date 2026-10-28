@@ -81,14 +81,24 @@ The current goal is to make the project easy to evolve without turning the first
 
 ## Architecture
 
-The API follows a feature-module structure:
+The API is split into a kernel, a toolbox and feature modules, with one-way
+dependencies (`modules → shared → core`) enforced by a test:
+
+| Layer | Responsibility |
+| --- | --- |
+| `src/api/core` | Module contract (`IModule`), host setup, `Result`/`Error`, result-to-HTTP mapping, `CurrentUser`, persistence and configuration |
+| `src/api/shared` | Pure helpers: `ValidationErrors`, `TextNormalizer`, `EnumCode` |
+| `src/api/modules` | Feature modules built on core and shared |
+
+Each feature module follows the same structure:
 
 ```text
 src/api/modules/<feature>
-├── Application      # Use cases, ports, result models
+├── Application      # Use cases and ports, returning core Result values
 ├── Contracts        # HTTP request and response contracts
 ├── Domain           # Domain records and enums
 ├── Infrastructure   # EF entities, configurations, stores
+├── <Feature>Module.cs     # IModule: registers services and endpoints
 └── <Feature>Endpoints.cs
 ```
 

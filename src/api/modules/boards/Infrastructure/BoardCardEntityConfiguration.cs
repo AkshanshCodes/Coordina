@@ -1,4 +1,5 @@
 using Coordina.Api.Modules.Boards.Domain;
+using Coordina.Api.Shared.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -48,10 +49,10 @@ public sealed class BoardCardEntityConfiguration
       .HasConversion(
         priority => priority == null
           ? null
-          : priority.Value.ToString().ToUpperInvariant(),
+          : EnumCode.Format(priority.Value),
         value => string.IsNullOrWhiteSpace(value)
           ? null
-          : Enum.Parse<BoardCardPriority>(value, true))
+          : EnumCode.Parse<BoardCardPriority>(value))
       .HasMaxLength(12);
 
     builder.Property(card => card.DueDate)

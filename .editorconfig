@@ -19,6 +19,8 @@ dotnet_style_qualification_for_field = false:suggestion
 dotnet_style_qualification_for_method = false:suggestion
 dotnet_style_qualification_for_property = false:suggestion
 csharp_style_namespace_declarations = file_scoped:suggestion
+# VB keyword clashes (Error, Shared) do not matter for a C#-only application.
+dotnet_diagnostic.CA1716.severity = none
 
 [tests/**/*.cs]
 dotnet_diagnostic.CA1707.severity = none

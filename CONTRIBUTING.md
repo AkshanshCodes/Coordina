@@ -69,17 +69,43 @@ src/api/modules/<feature>
 ├── Contracts
 ├── Domain
 ├── Infrastructure
+├── <Feature>Module.cs
 └── <Feature>Endpoints.cs
 ```
+
+Modules build on two foundation layers instead of re-implementing plumbing:
+`src/api/core` (module contract, results, HTTP mapping, current user,
+persistence) and `src/api/shared` (validation, text and enum helpers). See
+`docs/architecture.mdx` for the full list.
 
 When adding backend behavior:
 
 1. Put business rules in `Application`.
 2. Keep HTTP request and response shapes in `Contracts`.
-3. Keep EF entities and database queries in `Infrastructure`.
-4. Return explicit result statuses from services instead of throwing for normal user-facing outcomes.
-5. Add integration tests for endpoint behavior.
-6. Add migrations when persistence changes.
+3. Keep EF entities, their `IEntityTypeConfiguration`, and database queries in `Infrastructure`.
+4. Return `Result`/`Result<T>` from services (`return Error.NotFound();`) instead of throwing for normal user-facing outcomes.
+5. Build field errors with `ValidationErrors` (`Required`, `MaxLength`, `Code<TEnum>` for enum fields), normalize input with `TextNormalizer`, and format enums with `EnumCode`.
+6. Map endpoint groups with `MapApiGroup`, which requires an authenticated user. Mark public endpoints with `AllowAnonymous()` and add them to `EndpointAuthorizationTests`.
+7. In endpoints, take `CurrentUser` and map results with `ToOkResult`, `ToCreatedResult`, or `ToNoContentResult`.
+8. Inject `TimeProvider` instead of reading `DateTimeOffset.UtcNow`.
+9. Register a new module by implementing `IModule` and adding it to `AddModules` in `Program.cs`.
+10. Add integration tests for endpoint behavior.
+11. Add migrations when persistence changes.
+
+### Automated rules
+
+These conventions are tests, so `make api-test` reports a violation before a
+reviewer has to:
+
+| Test | Rule |
+| --- | --- |
+| `LayerDependencyTests` | `core` never references `shared` or modules; `shared` never references modules |
+| `ModuleConventionTests` | Modules use `TimeProvider`, `CurrentUser`, core results, and touch `CoordinaDbContext` only in `Infrastructure` |
+| `EndpointAuthorizationTests` | Every endpoint requires authorization or is explicitly anonymous, and anonymous routes are allow-listed |
+| `ModuleRegistrationTests` | Every `IModule` implementation is registered in `Program.cs` |
+
+If a rule blocks a legitimate change, change the rule in the same pull request
+and explain why.
 
 Authorization rules must be enforced by the API. Frontend checks may improve UX, but they are not security boundaries.
 
@@ -127,6 +153,35 @@ Before submitting a database change, verify:
 
 ## Testing
 
+Endpoint tests derive from `ApiTest`, which provides an in-memory API and an
+`ApiTestClient` (`Api`) for setup and requests:
+
+```csharp
+public sealed class ProjectRulesTests(ApiTestApplicationFactory factory)
+  : ApiTest(factory)
+{
+  [Fact]
+  public async Task Member_CannotPermanentlyDeleteProject()
+  {
+    var owner = await Api.RegisterAsync();
+    var workspace = await Api.CreateWorkspaceAsync(owner.AccessToken);
+    var member = await Api.AddMemberAsync(owner.AccessToken, workspace.Id);
+    var project = await Api.CreateProjectAsync(owner.AccessToken, workspace.Id);
+
+    var response = await Api.SendAsync(
+      HttpMethod.Delete,
+      $"/workspaces/{workspace.Id}/projects/{project.Id}/permanent",
+      member.AccessToken);
+
+    Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+  }
+}
+```
+
+Response shapes live in `tests/api/Support/ApiContracts.cs`. They describe the
+JSON the web client receives, so update them when a contract changes on purpose.
+Add a setup helper to `ApiTestClient` when a second test file needs it.
+
 Run focused tests while developing:
 
 ```bash
@@ -165,24 +220,30 @@ Before requesting review, confirm:
 [ ] The change is focused and explained clearly.
 [ ] The change fits the current pre-MVP direction.
 [ ] Backend behavior has API or unit tests where appropriate.
+[ ] Backend code uses core/shared building blocks instead of local copies.
 [ ] Frontend behavior has component, state, or e2e tests where appropriate.
 [ ] Database changes include an EF migration.
 [ ] Security-sensitive behavior is enforced server-side.
+[ ] New public endpoints use AllowAnonymous() and are allow-listed in EndpointAuthorizationTests.
 [ ] make quality passes locally.
 [ ] Documentation was updated if commands, contracts, or setup changed.
 ```
 
 ## Commit Style
 
-Use clear imperative commit messages:
+Use [Conventional Commits](https://www.conventionalcommits.org/) with a scope
+and an imperative summary:
 
 ```text
-Add workspace invite consumption tests
-Fix owner-only member removal response
-Document local quality gate
+feat(boards): add card effort estimate
+fix(workspaces): consume invites atomically
+refactor(api): move persistence into core
+test(api): enforce module conventions
+docs: document context-aware planning
 ```
 
-Avoid vague messages such as `update`, `fix stuff`, or `changes`.
+Keep each commit focused and building on its own. Avoid vague messages such as
+`update`, `fix stuff`, or `changes`.
 
 ## Reviewing
 
@@ -193,7 +254,7 @@ Reviews should focus on correctness first:
 | Behavior | Does the change do what it claims? |
 | Security | Are access rules enforced by the API? |
 | Tests | Would the tests fail if the behavior regressed? |
-| Maintainability | Does the change fit the existing module shape? |
+| Maintainability | Does the change fit the existing module shape and reuse core/shared? |
 | Product feel | Is the user experience clear and consistent? |
 
 Keep feedback specific and actionable.

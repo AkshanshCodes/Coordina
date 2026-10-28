@@ -1,4 +1,5 @@
-using System.Security.Claims;
+using Coordina.Api.Core.Http;
+using Coordina.Api.Core.Security;
 using Coordina.Api.Modules.Boards.Application;
 using Coordina.Api.Modules.Boards.Contracts;
 
@@ -9,10 +10,9 @@ public static class BoardEndpoints
   public static IEndpointRouteBuilder MapBoardEndpoints(
     this IEndpointRouteBuilder app)
   {
-    var projectGroup = app
-      .MapGroup("/workspaces/{workspaceId:guid}/projects/{projectId:guid}")
-      .RequireAuthorization()
-      .WithTags("Boards");
+    var projectGroup = app.MapApiGroup(
+      "/workspaces/{workspaceId:guid}/projects/{projectId:guid}",
+      "Boards");
 
     projectGroup.MapGet("/board", GetDefault)
       .WithSummary("Get default project board")
@@ -74,51 +74,36 @@ public static class BoardEndpoints
   private static async Task<IResult> GetDefault(
     Guid workspaceId,
     Guid projectId,
-    ClaimsPrincipal user,
+    CurrentUser user,
     IBoardCatalogService boardCatalog,
     CancellationToken cancellationToken)
   {
-    if (!TryGetUserId(user, out var userId))
-    {
-      return Results.Unauthorized();
-    }
-
     var result = await boardCatalog.GetDefaultAsync(
       workspaceId,
       projectId,
-      userId,
+      user.Id,
       cancellationToken);
 
-    return ToResult(result);
+    return result.ToOkResult();
   }
 
   private static async Task<IResult> CreateBoard(
     Guid workspaceId,
     Guid projectId,
     CreateBoardRequest request,
-    ClaimsPrincipal user,
+    CurrentUser user,
     IBoardCatalogService boardCatalog,
     CancellationToken cancellationToken)
   {
-    if (!TryGetUserId(user, out var userId))
-    {
-      return Results.Unauthorized();
-    }
-
     var result = await boardCatalog.CreateAsync(
       workspaceId,
       projectId,
       request,
-      userId,
+      user.Id,
       cancellationToken);
 
-    return result.Status switch
-    {
-      BoardResultStatus.Success => Results.Created(
-        $"/workspaces/{workspaceId}/projects/{projectId}/boards/{result.Value!.Id}",
-        result.Value),
-      _ => ToResult(result)
-    };
+    return result.ToCreatedResult(
+      board => $"/workspaces/{workspaceId}/projects/{projectId}/boards/{board.Id}");
   }
 
   private static async Task<IResult> GetGraph(
@@ -129,20 +114,15 @@ public static class BoardEndpoints
     string? context,
     bool? preferAssigned,
     bool? includeUnassigned,
-    ClaimsPrincipal user,
+    CurrentUser user,
     IBoardDependencyService boardDependencies,
     CancellationToken cancellationToken)
   {
-    if (!TryGetUserId(user, out var userId))
-    {
-      return Results.Unauthorized();
-    }
-
     var result = await boardDependencies.GetGraphAsync(
       workspaceId,
       projectId,
       boardId,
-      userId,
+      user.Id,
       new BoardPlanningRequest(
         availableMinutes,
         context,
@@ -150,7 +130,7 @@ public static class BoardEndpoints
         includeUnassigned),
       cancellationToken);
 
-    return ToResult(result);
+    return result.ToOkResult();
   }
 
   private static async Task<IResult> CreateList(
@@ -158,24 +138,19 @@ public static class BoardEndpoints
     Guid projectId,
     Guid boardId,
     CreateBoardListRequest request,
-    ClaimsPrincipal user,
+    CurrentUser user,
     IBoardListService boardLists,
     CancellationToken cancellationToken)
   {
-    if (!TryGetUserId(user, out var userId))
-    {
-      return Results.Unauthorized();
-    }
-
     var result = await boardLists.CreateListAsync(
       workspaceId,
       projectId,
       boardId,
       request,
-      userId,
+      user.Id,
       cancellationToken);
 
-    return ToResult(result);
+    return result.ToOkResult();
   }
 
   private static async Task<IResult> UpdateList(
@@ -184,25 +159,20 @@ public static class BoardEndpoints
     Guid boardId,
     Guid listId,
     UpdateBoardListRequest request,
-    ClaimsPrincipal user,
+    CurrentUser user,
     IBoardListService boardLists,
     CancellationToken cancellationToken)
   {
-    if (!TryGetUserId(user, out var userId))
-    {
-      return Results.Unauthorized();
-    }
-
     var result = await boardLists.UpdateListAsync(
       workspaceId,
       projectId,
       boardId,
       listId,
       request,
-      userId,
+      user.Id,
       cancellationToken);
 
-    return ToResult(result);
+    return result.ToOkResult();
   }
 
   private static async Task<IResult> CreateCard(
@@ -211,25 +181,20 @@ public static class BoardEndpoints
     Guid boardId,
     Guid listId,
     CreateBoardCardRequest request,
-    ClaimsPrincipal user,
+    CurrentUser user,
     IBoardCardService boardCards,
     CancellationToken cancellationToken)
   {
-    if (!TryGetUserId(user, out var userId))
-    {
-      return Results.Unauthorized();
-    }
-
     var result = await boardCards.CreateCardAsync(
       workspaceId,
       projectId,
       boardId,
       listId,
       request,
-      userId,
+      user.Id,
       cancellationToken);
 
-    return ToResult(result);
+    return result.ToOkResult();
   }
 
   private static async Task<IResult> UpdateCard(
@@ -238,25 +203,20 @@ public static class BoardEndpoints
     Guid boardId,
     Guid cardId,
     UpdateBoardCardRequest request,
-    ClaimsPrincipal user,
+    CurrentUser user,
     IBoardCardService boardCards,
     CancellationToken cancellationToken)
   {
-    if (!TryGetUserId(user, out var userId))
-    {
-      return Results.Unauthorized();
-    }
-
     var result = await boardCards.UpdateCardAsync(
       workspaceId,
       projectId,
       boardId,
       cardId,
       request,
-      userId,
+      user.Id,
       cancellationToken);
 
-    return ToResult(result);
+    return result.ToOkResult();
   }
 
   private static async Task<IResult> MoveCard(
@@ -265,25 +225,20 @@ public static class BoardEndpoints
     Guid boardId,
     Guid cardId,
     MoveBoardCardRequest request,
-    ClaimsPrincipal user,
+    CurrentUser user,
     IBoardCardService boardCards,
     CancellationToken cancellationToken)
   {
-    if (!TryGetUserId(user, out var userId))
-    {
-      return Results.Unauthorized();
-    }
-
     var result = await boardCards.MoveCardAsync(
       workspaceId,
       projectId,
       boardId,
       cardId,
       request,
-      userId,
+      user.Id,
       cancellationToken);
 
-    return ToResult(result);
+    return result.ToOkResult();
   }
 
   private static async Task<IResult> GetCardDependencyAnalysis(
@@ -291,24 +246,19 @@ public static class BoardEndpoints
     Guid projectId,
     Guid boardId,
     Guid cardId,
-    ClaimsPrincipal user,
+    CurrentUser user,
     IBoardDependencyService boardDependencies,
     CancellationToken cancellationToken)
   {
-    if (!TryGetUserId(user, out var userId))
-    {
-      return Results.Unauthorized();
-    }
-
     var result = await boardDependencies.GetCardDependencyAnalysisAsync(
       workspaceId,
       projectId,
       boardId,
       cardId,
-      userId,
+      user.Id,
       cancellationToken);
 
-    return ToResult(result);
+    return result.ToOkResult();
   }
 
   private static async Task<IResult> AddCardComment(
@@ -317,25 +267,20 @@ public static class BoardEndpoints
     Guid boardId,
     Guid cardId,
     CreateBoardCardCommentRequest request,
-    ClaimsPrincipal user,
+    CurrentUser user,
     IBoardCollaborationService boardCollaboration,
     CancellationToken cancellationToken)
   {
-    if (!TryGetUserId(user, out var userId))
-    {
-      return Results.Unauthorized();
-    }
-
     var result = await boardCollaboration.AddCardCommentAsync(
       workspaceId,
       projectId,
       boardId,
       cardId,
       request,
-      userId,
+      user.Id,
       cancellationToken);
 
-    return ToResult(result);
+    return result.ToOkResult();
   }
 
   private static async Task<IResult> CreateCardSubtask(
@@ -344,25 +289,20 @@ public static class BoardEndpoints
     Guid boardId,
     Guid cardId,
     CreateBoardCardSubtaskRequest request,
-    ClaimsPrincipal user,
+    CurrentUser user,
     IBoardCollaborationService boardCollaboration,
     CancellationToken cancellationToken)
   {
-    if (!TryGetUserId(user, out var userId))
-    {
-      return Results.Unauthorized();
-    }
-
     var result = await boardCollaboration.CreateCardSubtaskAsync(
       workspaceId,
       projectId,
       boardId,
       cardId,
       request,
-      userId,
+      user.Id,
       cancellationToken);
 
-    return ToResult(result);
+    return result.ToOkResult();
   }
 
   private static async Task<IResult> UpdateCardSubtask(
@@ -372,15 +312,10 @@ public static class BoardEndpoints
     Guid cardId,
     Guid subtaskId,
     UpdateBoardCardSubtaskRequest request,
-    ClaimsPrincipal user,
+    CurrentUser user,
     IBoardCollaborationService boardCollaboration,
     CancellationToken cancellationToken)
   {
-    if (!TryGetUserId(user, out var userId))
-    {
-      return Results.Unauthorized();
-    }
-
     var result = await boardCollaboration.UpdateCardSubtaskAsync(
       workspaceId,
       projectId,
@@ -388,10 +323,10 @@ public static class BoardEndpoints
       cardId,
       subtaskId,
       request,
-      userId,
+      user.Id,
       cancellationToken);
 
-    return ToResult(result);
+    return result.ToOkResult();
   }
 
   private static async Task<IResult> DeleteCardSubtask(
@@ -400,25 +335,20 @@ public static class BoardEndpoints
     Guid boardId,
     Guid cardId,
     Guid subtaskId,
-    ClaimsPrincipal user,
+    CurrentUser user,
     IBoardCollaborationService boardCollaboration,
     CancellationToken cancellationToken)
   {
-    if (!TryGetUserId(user, out var userId))
-    {
-      return Results.Unauthorized();
-    }
-
     var result = await boardCollaboration.DeleteCardSubtaskAsync(
       workspaceId,
       projectId,
       boardId,
       cardId,
       subtaskId,
-      userId,
+      user.Id,
       cancellationToken);
 
-    return ToEmptyResult(result);
+    return result.ToNoContentResult();
   }
 
   private static async Task<IResult> AddCardDependency(
@@ -427,25 +357,20 @@ public static class BoardEndpoints
     Guid boardId,
     Guid cardId,
     AddBoardCardDependencyRequest request,
-    ClaimsPrincipal user,
+    CurrentUser user,
     IBoardDependencyService boardDependencies,
     CancellationToken cancellationToken)
   {
-    if (!TryGetUserId(user, out var userId))
-    {
-      return Results.Unauthorized();
-    }
-
     var result = await boardDependencies.AddCardDependencyAsync(
       workspaceId,
       projectId,
       boardId,
       cardId,
       request,
-      userId,
+      user.Id,
       cancellationToken);
 
-    return ToResult(result);
+    return result.ToOkResult();
   }
 
   private static async Task<IResult> DeleteCardDependency(
@@ -454,25 +379,20 @@ public static class BoardEndpoints
     Guid boardId,
     Guid cardId,
     Guid dependsOnCardId,
-    ClaimsPrincipal user,
+    CurrentUser user,
     IBoardDependencyService boardDependencies,
     CancellationToken cancellationToken)
   {
-    if (!TryGetUserId(user, out var userId))
-    {
-      return Results.Unauthorized();
-    }
-
     var result = await boardDependencies.DeleteCardDependencyAsync(
       workspaceId,
       projectId,
       boardId,
       cardId,
       dependsOnCardId,
-      userId,
+      user.Id,
       cancellationToken);
 
-    return ToEmptyResult(result);
+    return result.ToNoContentResult();
   }
 
   private static async Task<IResult> DeleteCard(
@@ -480,64 +400,18 @@ public static class BoardEndpoints
     Guid projectId,
     Guid boardId,
     Guid cardId,
-    ClaimsPrincipal user,
+    CurrentUser user,
     IBoardCardService boardCards,
     CancellationToken cancellationToken)
   {
-    if (!TryGetUserId(user, out var userId))
-    {
-      return Results.Unauthorized();
-    }
-
     var result = await boardCards.DeleteCardAsync(
       workspaceId,
       projectId,
       boardId,
       cardId,
-      userId,
+      user.Id,
       cancellationToken);
 
-    return ToEmptyResult(result);
-  }
-
-  private static IResult ToEmptyResult<T>(BoardResult<T> result)
-  {
-    return result.Status switch
-    {
-      BoardResultStatus.Success => Results.NoContent(),
-      BoardResultStatus.Forbidden => Results.Forbid(),
-      BoardResultStatus.NotFound => Results.NotFound(),
-      BoardResultStatus.Conflict => Results.Conflict(new
-      {
-        message = result.Message
-      }),
-      _ => Results.BadRequest()
-    };
-  }
-
-  private static IResult ToResult<T>(BoardResult<T> result)
-  {
-    return result.Status switch
-    {
-      BoardResultStatus.Success => Results.Ok(result.Value),
-      BoardResultStatus.ValidationError => Results.ValidationProblem(
-        result.Errors?.ToDictionary() ?? new Dictionary<string, string[]>()),
-      BoardResultStatus.Forbidden => Results.Forbid(),
-      BoardResultStatus.NotFound => Results.NotFound(),
-      BoardResultStatus.Conflict => Results.Conflict(new
-      {
-        message = result.Message
-      }),
-      _ => Results.BadRequest()
-    };
-  }
-
-  private static bool TryGetUserId(
-    ClaimsPrincipal user,
-    out Guid userId)
-  {
-    return Guid.TryParse(
-      user.FindFirstValue(ClaimTypes.NameIdentifier),
-      out userId);
+    return result.ToNoContentResult();
   }
 }

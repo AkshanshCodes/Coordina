@@ -1,4 +1,6 @@
 using Coordina.Api.Modules.Boards.Domain;
+using Coordina.Api.Shared.Text;
+using Coordina.Api.Shared.Validation;
 
 namespace Coordina.Api.Modules.Boards.Application;
 
@@ -6,62 +8,18 @@ internal static class BoardRules
 {
   public const int MinEstimatedMinutes = 5;
   public const int MaxEstimatedMinutes = 2880;
+  private const int MaxLabels = 12;
+  private const int MaxCustomLists = 12;
+  private const int MaxListTitleLength = 80;
+  private const int MaxCardTitleLength = 180;
 
-  public static BoardTemplate? ParseTemplate(
-    string? template,
-    out string? error)
-  {
-    error = null;
-
-    if (string.IsNullOrWhiteSpace(template))
-    {
-      error = "Board template is required.";
-      return null;
-    }
-
-    var normalized = template.Replace("_", string.Empty, StringComparison.Ordinal);
-
-    if (Enum.TryParse<BoardTemplate>(normalized, true, out var parsed))
-    {
-      return parsed;
-    }
-
-    error = "Board template must be BASIC, AGILE_SCRUM, BUG_TRACKING, PRODUCT_ROADMAP, or CUSTOM.";
-    return null;
-  }
-
-  public static BoardCardPriority? ParsePriority(
-    string? priority,
-    out string? error)
-  {
-    error = null;
-
-    if (string.IsNullOrWhiteSpace(priority))
-    {
-      return null;
-    }
-
-    if (Enum.TryParse<BoardCardPriority>(priority, true, out var parsed))
-    {
-      return parsed;
-    }
-
-    error = "Card priority must be LOW, MEDIUM, or HIGH.";
-    return null;
-  }
-
-  public static BoardListSeed[] BuildListSeeds(
+  private static BoardListSeed[] BuildListSeeds(
     BoardTemplate template,
     string[]? customListTitles)
   {
     if (template == BoardTemplate.Custom)
     {
-      var titles = (customListTitles ?? [])
-        .Select(NormalizeText)
-        .OfType<string>()
-        .Distinct(StringComparer.OrdinalIgnoreCase)
-        .Take(12)
-        .ToArray();
+      var titles = TextNormalizer.DistinctNonBlank(customListTitles, MaxCustomLists);
 
       return titles
         .Select((title, index) => new BoardListSeed(
@@ -85,26 +43,6 @@ internal static class BoardRules
       .ToArray();
   }
 
-  public static BoardTaskStatus ParseListStatus(
-    string? taskStatus,
-    out string? error)
-  {
-    error = null;
-
-    if (string.IsNullOrWhiteSpace(taskStatus))
-    {
-      return BoardTaskStatus.Todo;
-    }
-
-    if (BoardTaskStatusCodec.TryParse(taskStatus, out var parsed))
-    {
-      return parsed;
-    }
-
-    error = "List task status must be TODO, IN_PROGRESS, or DONE.";
-    return BoardTaskStatus.Todo;
-  }
-
   private static BoardTaskStatus CustomListStatus(int index, int count)
   {
     if (index == 0)
@@ -117,126 +55,73 @@ internal static class BoardRules
       : BoardTaskStatus.InProgress;
   }
 
-  public static Dictionary<string, string[]> ValidateBoard(
+  /// <summary>
+  /// Validates a new board and, when the template is valid, returns the lists
+  /// it generates.
+  /// </summary>
+  public static ValidationErrors ValidateBoard(
     string? name,
-    BoardTemplate? template,
-    string? templateError,
-    BoardListSeed[] listSeeds)
+    string? templateCode,
+    string[]? customListTitles,
+    out BoardTemplate? template,
+    out BoardListSeed[] listSeeds)
   {
-    var errors = new Dictionary<string, string[]>();
+    var errors = new ValidationErrors()
+      .Required("Name", name, "Board name", maxLength: 120)
+      .RequiredCode("Template", templateCode, "Board template", out template);
 
-    if (string.IsNullOrWhiteSpace(name))
-    {
-      errors["Name"] = ["Board name is required."];
-    }
-    else if (name.Trim().Length > 120)
-    {
-      errors["Name"] = ["Board name must be 120 characters or fewer."];
-    }
-
-    if (templateError is not null)
-    {
-      errors["Template"] = [templateError];
-    }
+    listSeeds = template is null
+      ? []
+      : BuildListSeeds(template.Value, customListTitles);
 
     if (template == BoardTemplate.Custom && listSeeds.Length == 0)
     {
-      errors["CustomListTitles"] = [
-        "Custom boards need at least one list title."
-      ];
+      errors.Add("CustomListTitles", "Custom boards need at least one list title.");
     }
     else if (template == BoardTemplate.Custom
-      && listSeeds.Any(list => list.Title.Length > 80))
+      && listSeeds.Any(list => list.Title.Length > MaxListTitleLength))
     {
-      errors["CustomListTitles"] = [
-        "Custom list titles must be 80 characters or fewer."
-      ];
+      errors.Add(
+        "CustomListTitles",
+        $"Custom list titles must be {MaxListTitleLength} characters or fewer.");
     }
 
     return errors;
   }
 
-  public static Dictionary<string, string[]> ValidateList(string? title)
-  {
-    var errors = new Dictionary<string, string[]>();
+  public static ValidationErrors ValidateList(string? title) =>
+    new ValidationErrors()
+      .Required("Title", title, "List title", maxLength: MaxListTitleLength);
 
-    if (string.IsNullOrWhiteSpace(title))
-    {
-      errors["Title"] = ["List title is required."];
-    }
-    else if (title.Trim().Length > 80)
-    {
-      errors["Title"] = ["List title must be 80 characters or fewer."];
-    }
+  public static ValidationErrors ValidateCardTitle(string? title) =>
+    new ValidationErrors()
+      .Required("Title", title, "Card title", maxLength: MaxCardTitleLength);
 
-    return errors;
-  }
-
-  public static Dictionary<string, string[]> ValidateCard(
+  public static ValidationErrors ValidateCard(
     string? title,
     string? description,
-    string? priorityError,
+    string? priorityCode,
     IReadOnlyCollection<string> labels,
     DateOnly? dueDate,
-    int? estimatedMinutes = null)
-  {
-    var errors = new Dictionary<string, string[]>();
+    int? estimatedMinutes,
+    DateOnly today,
+    out BoardCardPriority? priority) =>
+    ValidateCardTitle(title)
+      .MaxLength("Description", description, "Card description", 2000)
+      .Code("Priority", priorityCode, "Card priority", out priority)
+      .AddIf(
+        labels.Any(label => label.Length > 32),
+        "Labels",
+        "Labels must be 32 characters or fewer.")
+      .AddIf(
+        dueDate < today,
+        "DueDate",
+        "Due date cannot be in the past.")
+      .AddIf(
+        estimatedMinutes is < MinEstimatedMinutes or > MaxEstimatedMinutes,
+        "EstimatedMinutes",
+        $"Effort must be between {MinEstimatedMinutes} and {MaxEstimatedMinutes} minutes.");
 
-    if (string.IsNullOrWhiteSpace(title))
-    {
-      errors["Title"] = ["Card title is required."];
-    }
-    else if (title.Trim().Length > 180)
-    {
-      errors["Title"] = ["Card title must be 180 characters or fewer."];
-    }
-
-    if (description?.Trim().Length > 2000)
-    {
-      errors["Description"] = [
-        "Card description must be 2000 characters or fewer."
-      ];
-    }
-
-    if (priorityError is not null)
-    {
-      errors["Priority"] = [priorityError];
-    }
-
-    if (labels.Any(label => label.Length > 32))
-    {
-      errors["Labels"] = ["Labels must be 32 characters or fewer."];
-    }
-
-    if (dueDate is not null
-      && dueDate.Value < DateOnly.FromDateTime(DateTime.UtcNow))
-    {
-      errors["DueDate"] = ["Due date cannot be in the past."];
-    }
-
-    if (estimatedMinutes is < MinEstimatedMinutes or > MaxEstimatedMinutes)
-    {
-      errors["EstimatedMinutes"] = [
-        $"Effort must be between {MinEstimatedMinutes} and {MaxEstimatedMinutes} minutes."
-      ];
-    }
-
-    return errors;
-  }
-
-  public static string[] NormalizeLabels(string[]? labels)
-  {
-    return (labels ?? [])
-      .Select(NormalizeText)
-      .OfType<string>()
-      .Distinct(StringComparer.OrdinalIgnoreCase)
-      .Take(12)
-      .ToArray();
-  }
-
-  public static string? NormalizeText(string? value)
-  {
-    var normalized = value?.Trim();
-    return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
-  }
+  public static string[] NormalizeLabels(string[]? labels) =>
+    TextNormalizer.DistinctNonBlank(labels, MaxLabels);
 }

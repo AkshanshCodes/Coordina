@@ -1,13 +1,17 @@
+using Coordina.Api.Core.Results;
 using Coordina.Api.Modules.Boards.Contracts;
 using Coordina.Api.Modules.Projects.Application;
+using Coordina.Api.Shared.Text;
+using Coordina.Api.Shared.Validation;
 
 namespace Coordina.Api.Modules.Boards.Application;
 
 public sealed class BoardCollaborationService(
   IBoardStore boards,
-  IProjectAccessGuard projectAccess) : IBoardCollaborationService
+  IProjectAccessGuard projectAccess,
+  TimeProvider clock) : IBoardCollaborationService
 {
-  public async Task<BoardResult<BoardResponse>> AddCardCommentAsync(
+  public async Task<Result<BoardResponse>> AddCardCommentAsync(
     Guid workspaceId,
     Guid projectId,
     Guid boardId,
@@ -16,36 +20,24 @@ public sealed class BoardCollaborationService(
     Guid userId,
     CancellationToken cancellationToken)
   {
-    var access = await projectAccess.FindWritableAccessAsync(
+    var access = await projectAccess.AuthorizeWriteAsync(
       workspaceId,
       projectId,
       userId,
       cancellationToken);
 
-    if (access.Status != ProjectAccessStatus.Granted)
+    if (!access.IsSuccess)
     {
-      return BoardResults.AccessFailure<BoardResponse>(access.Status);
+      return access.Error;
     }
 
-    var body = BoardRules.NormalizeText(request.Body);
-    if (string.IsNullOrWhiteSpace(body))
-    {
-      return new BoardResult<BoardResponse>(
-        BoardResultStatus.ValidationError,
-        Errors: new Dictionary<string, string[]>
-        {
-          [nameof(request.Body)] = ["Comment is required."]
-        });
-    }
+    var body = TextNormalizer.TrimToNull(request.Body);
+    var errors = new ValidationErrors()
+      .Required(nameof(request.Body), body, "Comment", maxLength: 1000);
 
-    if (body.Length > 1000)
+    if (errors.HasErrors)
     {
-      return new BoardResult<BoardResponse>(
-        BoardResultStatus.ValidationError,
-        Errors: new Dictionary<string, string[]>
-        {
-          [nameof(request.Body)] = ["Comment must be 1000 characters or fewer."]
-        });
+      return errors.ToError();
     }
 
     var board = await boards.AddCardCommentAsync(
@@ -54,18 +46,16 @@ public sealed class BoardCollaborationService(
       boardId,
       cardId,
       userId,
-      body,
-      DateTimeOffset.UtcNow,
+      body!,
+      clock.GetUtcNow(),
       cancellationToken);
 
     return board is null
-      ? new BoardResult<BoardResponse>(BoardResultStatus.NotFound)
-      : new BoardResult<BoardResponse>(
-        BoardResultStatus.Success,
-        BoardResponseMapper.ToResponse(board));
+      ? Error.NotFound()
+      : Result.Success(BoardResponseMapper.ToResponse(board));
   }
 
-  public async Task<BoardResult<BoardResponse>> CreateCardSubtaskAsync(
+  public async Task<Result<BoardResponse>> CreateCardSubtaskAsync(
     Guid workspaceId,
     Guid projectId,
     Guid boardId,
@@ -74,32 +64,22 @@ public sealed class BoardCollaborationService(
     Guid userId,
     CancellationToken cancellationToken)
   {
-    var access = await projectAccess.FindWritableAccessAsync(
+    var access = await projectAccess.AuthorizeWriteAsync(
       workspaceId,
       projectId,
       userId,
       cancellationToken);
 
-    if (access.Status != ProjectAccessStatus.Granted)
+    if (!access.IsSuccess)
     {
-      return BoardResults.AccessFailure<BoardResponse>(access.Status);
+      return access.Error;
     }
 
-    var titleErrors = BoardRules.ValidateCard(
-      request.Title,
-      null,
-      null,
-      [],
-      null);
+    var errors = BoardRules.ValidateCardTitle(request.Title);
 
-    if (titleErrors.Count > 0)
+    if (errors.HasErrors)
     {
-      return new BoardResult<BoardResponse>(
-        BoardResultStatus.ValidationError,
-        Errors: new Dictionary<string, string[]>
-        {
-          [nameof(request.Title)] = titleErrors["Title"]
-        });
+      return errors.ToError();
     }
 
     var board = await boards.CreateCardSubtaskAsync(
@@ -108,17 +88,15 @@ public sealed class BoardCollaborationService(
       boardId,
       cardId,
       request.Title!.Trim(),
-      DateTimeOffset.UtcNow,
+      clock.GetUtcNow(),
       cancellationToken);
 
     return board is null
-      ? new BoardResult<BoardResponse>(BoardResultStatus.NotFound)
-      : new BoardResult<BoardResponse>(
-        BoardResultStatus.Success,
-        BoardResponseMapper.ToResponse(board));
+      ? Error.NotFound()
+      : Result.Success(BoardResponseMapper.ToResponse(board));
   }
 
-  public async Task<BoardResult<BoardResponse>> UpdateCardSubtaskAsync(
+  public async Task<Result<BoardResponse>> UpdateCardSubtaskAsync(
     Guid workspaceId,
     Guid projectId,
     Guid boardId,
@@ -128,34 +106,24 @@ public sealed class BoardCollaborationService(
     Guid userId,
     CancellationToken cancellationToken)
   {
-    var access = await projectAccess.FindWritableAccessAsync(
+    var access = await projectAccess.AuthorizeWriteAsync(
       workspaceId,
       projectId,
       userId,
       cancellationToken);
 
-    if (access.Status != ProjectAccessStatus.Granted)
+    if (!access.IsSuccess)
     {
-      return BoardResults.AccessFailure<BoardResponse>(access.Status);
+      return access.Error;
     }
 
     if (request.Title is not null)
     {
-      var errors = BoardRules.ValidateCard(
-        request.Title,
-        null,
-        null,
-        [],
-        null);
+      var errors = BoardRules.ValidateCardTitle(request.Title);
 
-      if (errors.Count > 0)
+      if (errors.HasErrors)
       {
-        return new BoardResult<BoardResponse>(
-          BoardResultStatus.ValidationError,
-          Errors: new Dictionary<string, string[]>
-          {
-            [nameof(request.Title)] = errors["Title"]
-          });
+        return errors.ToError();
       }
     }
 
@@ -168,17 +136,15 @@ public sealed class BoardCollaborationService(
       request.Title?.Trim(),
       request.IsCompleted,
       userId,
-      DateTimeOffset.UtcNow,
+      clock.GetUtcNow(),
       cancellationToken);
 
     return board is null
-      ? new BoardResult<BoardResponse>(BoardResultStatus.NotFound)
-      : new BoardResult<BoardResponse>(
-        BoardResultStatus.Success,
-        BoardResponseMapper.ToResponse(board));
+      ? Error.NotFound()
+      : Result.Success(BoardResponseMapper.ToResponse(board));
   }
 
-  public async Task<BoardResult<object>> DeleteCardSubtaskAsync(
+  public async Task<Result> DeleteCardSubtaskAsync(
     Guid workspaceId,
     Guid projectId,
     Guid boardId,
@@ -187,15 +153,15 @@ public sealed class BoardCollaborationService(
     Guid userId,
     CancellationToken cancellationToken)
   {
-    var access = await projectAccess.FindWritableAccessAsync(
+    var access = await projectAccess.AuthorizeWriteAsync(
       workspaceId,
       projectId,
       userId,
       cancellationToken);
 
-    if (access.Status != ProjectAccessStatus.Granted)
+    if (!access.IsSuccess)
     {
-      return BoardResults.AccessFailure<object>(access.Status);
+      return access.Error;
     }
 
     var deleted = await boards.DeleteCardSubtaskAsync(
@@ -204,11 +170,9 @@ public sealed class BoardCollaborationService(
       boardId,
       cardId,
       subtaskId,
-      DateTimeOffset.UtcNow,
+      clock.GetUtcNow(),
       cancellationToken);
 
-    return deleted
-      ? new BoardResult<object>(BoardResultStatus.Success)
-      : new BoardResult<object>(BoardResultStatus.NotFound);
+    return deleted ? Result.Success() : Error.NotFound();
   }
 }

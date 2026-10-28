@@ -88,7 +88,7 @@ api-test-postgres: api-restore
 	dotnet test $(API_POSTGRES_TEST_PROJECT) --configuration Release --no-restore -m:1
 
 api-migration: api-restore api-tools
-	dotnet tool run dotnet-ef migrations add $(name) --project $(API_PROJECT) --output-dir infrastructure/persistence/Migrations --namespace Coordina.Api.Infrastructure.Persistence.Migrations
+	dotnet tool run dotnet-ef migrations add $(name) --project $(API_PROJECT) --output-dir core/Persistence/Migrations --namespace Coordina.Api.Core.Persistence.Migrations
 
 api-migrate: api-restore api-tools
 	dotnet tool run dotnet-ef database update --project $(API_PROJECT)

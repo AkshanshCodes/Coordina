@@ -1,15 +1,12 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Coordina.Api.Tests.Support;
 
 namespace Coordina.Api.Tests;
 
 public sealed class BoardWorkflowEndpointsTests(ApiTestApplicationFactory factory)
-  : IClassFixture<ApiTestApplicationFactory>
+  : ApiTest(factory)
 {
-  private readonly HttpClient _client = factory.CreateClient();
-
   [Theory]
   [InlineData("BASIC", new[] { "TODO", "IN_PROGRESS", "DONE" })]
   [InlineData("AGILE_SCRUM", new[] { "TODO", "TODO", "IN_PROGRESS", "IN_PROGRESS", "DONE" })]
@@ -82,10 +79,10 @@ public sealed class BoardWorkflowEndpointsTests(ApiTestApplicationFactory factor
     var scope = await CreateScopeAsync();
     var board = await CreateBoardAsync(scope, "CUSTOM", ["Open", "Closed"]);
 
-    var response = await SendAsync(
-      scope.AccessToken,
+    var response = await Api.SendAsync(
       HttpMethod.Post,
       $"{BoardPath(scope, board)}/lists",
+      scope.AccessToken,
       new { title = "Doing", taskStatus = "BLOCKED" });
 
     Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -194,17 +191,17 @@ public sealed class BoardWorkflowEndpointsTests(ApiTestApplicationFactory factor
     var created = await CreateCardAsync(scope, board, board.Lists.Single().Id, "Stuck");
     var card = FindCard(created, "Stuck");
 
-    var response = await SendAsync(
-      scope.AccessToken,
+    var response = await Api.SendAsync(
       HttpMethod.Patch,
       $"{BoardPath(scope, board)}/cards/{card.Id}",
+      scope.AccessToken,
       new { isCompleted = true, title = "Renamed while stuck" });
 
     Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-    var reloaded = await SendForAsync<BoardResponse>(
-      scope.AccessToken,
+    var reloaded = await Api.SendForAsync<BoardResponse>(
       HttpMethod.Get,
-      $"/workspaces/{scope.WorkspaceId}/projects/{scope.ProjectId}/board");
+      $"/workspaces/{scope.WorkspaceId}/projects/{scope.ProjectId}/board",
+      scope.AccessToken);
     var unchanged = FindCard(reloaded, "Stuck");
     Assert.False(unchanged.IsCompleted);
     Assert.Equal(card.ListId, unchanged.ListId);
@@ -261,10 +258,10 @@ public sealed class BoardWorkflowEndpointsTests(ApiTestApplicationFactory factor
     var scope = await CreateScopeAsync();
     var board = await CreateBoardAsync(scope, "BASIC", null);
 
-    var response = await SendAsync(
-      scope.AccessToken,
+    var response = await Api.SendAsync(
       HttpMethod.Post,
       $"{BoardPath(scope, board)}/lists/{ListWithStatus(board, "TODO").Id}/cards",
+      scope.AccessToken,
       new { title = "Too odd", estimatedMinutes = minutes });
 
     Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -328,112 +325,38 @@ public sealed class BoardWorkflowEndpointsTests(ApiTestApplicationFactory factor
       body);
   }
 
-  private async Task<TestScope> CreateScopeAsync()
-  {
-    var registration = await _client.PostAsJsonAsync("/auth/register", new
-    {
-      name = "Workflow Tester",
-      email = $"workflow-{Guid.NewGuid():N}@coordina.test",
-      password = "Password123!"
-    });
-    registration.EnsureSuccessStatusCode();
-    var auth = await registration.Content.ReadFromJsonAsync<AuthResponse>();
-    Assert.NotNull(auth);
-
-    var workspace = await SendForAsync<IdResponse>(
-      auth.AccessToken,
-      HttpMethod.Post,
-      "/workspaces",
-      new { name = "Workflow Team" });
-    var project = await SendForAsync<IdResponse>(
-      auth.AccessToken,
-      HttpMethod.Post,
-      $"/workspaces/{workspace.Id}/projects",
-      new { name = "Workflow" });
-
-    return new TestScope(auth.AccessToken, workspace.Id, project.Id);
-  }
-
-  private Task<BoardResponse> CreateBoardAsync(
-    TestScope scope,
-    string template,
-    string[]? customListTitles)
-  {
-    return SendForAsync<BoardResponse>(
-      scope.AccessToken,
-      HttpMethod.Post,
-      $"/workspaces/{scope.WorkspaceId}/projects/{scope.ProjectId}/boards",
-      new { name = "Workflow board", template, customListTitles });
-  }
-
   private Task<BoardResponse> SendForBoardAsync(
     TestScope scope,
     HttpMethod method,
     string path,
     object body)
   {
-    return SendForAsync<BoardResponse>(scope.AccessToken, method, path, body);
+    return Api.SendForAsync<BoardResponse>(method, path, scope.AccessToken, body);
   }
 
-  private async Task<T> SendForAsync<T>(
-    string accessToken,
-    HttpMethod method,
-    string path,
-    object? body = null)
+  private async Task<TestScope> CreateScopeAsync()
   {
-    using var response = await SendAsync(accessToken, method, path, body);
-    response.EnsureSuccessStatusCode();
+    var owner = await Api.RegisterAsync("Workflow Tester");
+    var workspace = await Api.CreateWorkspaceAsync(owner.AccessToken, "Workflow Team");
+    var project = await Api.CreateProjectAsync(owner.AccessToken, workspace.Id, "Workflow");
 
-    var payload = await response.Content.ReadFromJsonAsync<T>();
-    Assert.NotNull(payload);
-
-    return payload;
+    return new TestScope(owner.AccessToken, workspace.Id, project.Id);
   }
 
-  private async Task<HttpResponseMessage> SendAsync(
-    string accessToken,
-    HttpMethod method,
-    string path,
-    object? body = null)
-  {
-    using var request = new HttpRequestMessage(method, path);
-    request.Headers.Authorization = new AuthenticationHeaderValue(
-      "Bearer",
-      accessToken);
-
-    if (body is not null)
-    {
-      request.Content = JsonContent.Create(body);
-    }
-
-    return await _client.SendAsync(request);
-  }
+  private Task<BoardResponse> CreateBoardAsync(
+    TestScope scope,
+    string template,
+    string[]? customListTitles) =>
+    Api.CreateBoardAsync(
+      scope.AccessToken,
+      scope.WorkspaceId,
+      scope.ProjectId,
+      template,
+      customListTitles,
+      "Workflow board");
 
   private sealed record TestScope(
     string AccessToken,
     string WorkspaceId,
     string ProjectId);
-
-  private sealed record AuthResponse(string AccessToken);
-
-  private sealed record IdResponse(string Id);
-
-  private sealed record BoardResponse(
-    string Id,
-    IReadOnlyCollection<BoardListResponse> Lists);
-
-  private sealed record BoardListResponse(
-    string Id,
-    string Title,
-    int Position,
-    string TaskStatus,
-    IReadOnlyCollection<BoardCardResponse> Cards);
-
-  private sealed record BoardCardResponse(
-    string Id,
-    string ListId,
-    string Title,
-    bool IsCompleted,
-    DateTimeOffset? CompletedAt,
-    int? EstimatedMinutes);
 }

@@ -1,4 +1,4 @@
-using Coordina.Api.Infrastructure.Persistence;
+using Coordina.Api.Core.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using Testcontainers.PostgreSql;

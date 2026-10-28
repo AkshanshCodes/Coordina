@@ -1,42 +1,43 @@
+using Coordina.Api.Core.Results;
 using Coordina.Api.Modules.Projects.Contracts;
 
 namespace Coordina.Api.Modules.Projects.Application;
 
 public interface IProjectService
 {
-  Task<ProjectResult<ProjectResponse>> CreateAsync(
+  Task<Result<ProjectResponse>> CreateAsync(
     Guid workspaceId,
     CreateProjectRequest request,
     Guid userId,
     CancellationToken cancellationToken);
 
-  Task<ProjectResult<IReadOnlyCollection<ProjectResponse>>> ListAsync(
+  Task<Result<IReadOnlyCollection<ProjectResponse>>> ListAsync(
     Guid workspaceId,
     bool includeArchived,
     bool includeCompleted,
     Guid userId,
     CancellationToken cancellationToken);
 
-  Task<ProjectResult<ProjectResponse>> GetAsync(
+  Task<Result<ProjectResponse>> GetAsync(
     Guid workspaceId,
     Guid projectId,
     Guid userId,
     CancellationToken cancellationToken);
 
-  Task<ProjectResult<object>> DeleteAsync(
+  Task<Result> DeleteAsync(
     Guid workspaceId,
     Guid projectId,
     Guid userId,
     CancellationToken cancellationToken);
 
-  Task<ProjectResult<ProjectResponse>> UpdateAsync(
+  Task<Result<ProjectResponse>> UpdateAsync(
     Guid workspaceId,
     Guid projectId,
     UpdateProjectRequest request,
     Guid userId,
     CancellationToken cancellationToken);
 
-  Task<ProjectResult<object>> PermanentlyDeleteAsync(
+  Task<Result> PermanentlyDeleteAsync(
     Guid workspaceId,
     Guid projectId,
     Guid userId,

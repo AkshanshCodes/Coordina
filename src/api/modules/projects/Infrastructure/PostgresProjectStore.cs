@@ -1,4 +1,5 @@
-using Coordina.Api.Infrastructure.Persistence;
+using Coordina.Api.Core.Persistence;
+using Coordina.Api.Modules.Auth.Infrastructure;
 using Coordina.Api.Modules.Projects.Application;
 using Coordina.Api.Modules.Projects.Domain;
 using Microsoft.EntityFrameworkCore;
@@ -8,6 +9,10 @@ namespace Coordina.Api.Modules.Projects.Infrastructure;
 public sealed class PostgresProjectStore(CoordinaDbContext dbContext)
   : IProjectStore
 {
+  private DbSet<AuthUserEntity> AuthUsers => dbContext.Set<AuthUserEntity>();
+
+  private DbSet<ProjectEntity> Projects => dbContext.Set<ProjectEntity>();
+
   public async Task<Project> CreateAsync(
     Guid workspaceId,
     string name,
@@ -34,7 +39,7 @@ public sealed class PostgresProjectStore(CoordinaDbContext dbContext)
       UpdatedAt = createdAt
     };
 
-    dbContext.Projects.Add(entity);
+    Projects.Add(entity);
     await dbContext.SaveChangesAsync(cancellationToken);
 
     var project = await FindInWorkspaceAsync(
@@ -52,7 +57,7 @@ public sealed class PostgresProjectStore(CoordinaDbContext dbContext)
     bool includeCompleted,
     CancellationToken cancellationToken)
   {
-    var query = dbContext.Projects
+    var query = Projects
       .AsNoTracking()
       .Where(project => project.WorkspaceId == workspaceId);
 
@@ -75,7 +80,7 @@ public sealed class PostgresProjectStore(CoordinaDbContext dbContext)
     Guid projectId,
     CancellationToken cancellationToken)
   {
-    var query = dbContext.Projects
+    var query = Projects
       .AsNoTracking()
       .Where(project => project.WorkspaceId == workspaceId
         && project.Id == projectId);
@@ -95,7 +100,7 @@ public sealed class PostgresProjectStore(CoordinaDbContext dbContext)
       ? updatedAt
       : (DateTimeOffset?)null;
 
-    var updated = await dbContext.Projects
+    var updated = await Projects
       .Where(project => project.WorkspaceId == workspaceId
         && project.Id == projectId)
       .ExecuteUpdateAsync(setters => setters
@@ -121,7 +126,7 @@ public sealed class PostgresProjectStore(CoordinaDbContext dbContext)
     DateTimeOffset archivedAt,
     CancellationToken cancellationToken)
   {
-    var updated = await dbContext.Projects
+    var updated = await Projects
       .Where(project => project.WorkspaceId == workspaceId
         && project.Id == projectId)
       .ExecuteUpdateAsync(setters => setters
@@ -138,7 +143,7 @@ public sealed class PostgresProjectStore(CoordinaDbContext dbContext)
     Guid projectId,
     CancellationToken cancellationToken)
   {
-    var deleted = await dbContext.Projects
+    var deleted = await Projects
       .Where(project => project.WorkspaceId == workspaceId
         && project.Id == projectId)
       .ExecuteDeleteAsync(cancellationToken);
@@ -150,7 +155,7 @@ public sealed class PostgresProjectStore(CoordinaDbContext dbContext)
   {
     return query
       .GroupJoin(
-        dbContext.AuthUsers.AsNoTracking(),
+        AuthUsers.AsNoTracking(),
         project => project.ProjectOwnerId,
         user => user.Id,
         (project, owners) => new { project, owners })

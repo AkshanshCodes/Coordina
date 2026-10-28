@@ -4,14 +4,12 @@ using Coordina.Api.Tests.Support;
 namespace Coordina.Api.Tests;
 
 public sealed class OpenApiEndpointsTests(ApiTestApplicationFactory factory)
-    : IClassFixture<ApiTestApplicationFactory>
+  : ApiTest(factory)
 {
-  private readonly HttpClient _client = factory.CreateClient();
-
   [Fact]
   public async Task OpenApi_ReturnsDocument()
   {
-    var response = await _client.GetAsync("/openapi/v1.json");
+    var response = await Api.Http.GetAsync("/openapi/v1.json");
 
     Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
@@ -23,7 +21,7 @@ public sealed class OpenApiEndpointsTests(ApiTestApplicationFactory factory)
   [Fact]
   public async Task ApiDocs_ReturnsInteractiveReference()
   {
-    var response = await _client.GetAsync("/api-docs");
+    var response = await Api.Http.GetAsync("/api-docs");
 
     Assert.Equal(HttpStatusCode.OK, response.StatusCode);
   }

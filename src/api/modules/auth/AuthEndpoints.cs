@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Coordina.Api.Core.Http;
 using Coordina.Api.Modules.Auth.Application;
 using Coordina.Api.Modules.Auth.Contracts;
 
@@ -9,18 +10,17 @@ public static class AuthEndpoints
   public static IEndpointRouteBuilder MapAuthEndpoints(
     this IEndpointRouteBuilder app)
   {
-    var group = app
-      .MapGroup("/auth")
-      .WithTags("Auth");
+    var group = app.MapApiGroup("/auth", "Auth");
 
     group.MapPost("/register", Register)
+      .AllowAnonymous()
       .WithSummary("Create a workspace account")
       .WithDescription("Creates a user account and returns an access token.");
     group.MapPost("/login", Login)
+      .AllowAnonymous()
       .WithSummary("Sign in")
       .WithDescription("Authenticates a user and returns an access token.");
     group.MapGet("/me", GetCurrentUser)
-      .RequireAuthorization()
       .WithSummary("Get current user")
       .WithDescription("Returns the user attached to the bearer token.");
 
@@ -34,17 +34,7 @@ public static class AuthEndpoints
   {
     var result = await authService.RegisterAsync(request, cancellationToken);
 
-    return result.Status switch
-    {
-      AuthResultStatus.Success => Results.Created("/auth/me", result.Value),
-      AuthResultStatus.ValidationError => Results.ValidationProblem(
-        result.Errors ?? new Dictionary<string, string[]>()),
-      AuthResultStatus.Conflict => Results.Conflict(new
-      {
-        message = result.Message
-      }),
-      _ => Results.BadRequest()
-    };
+    return result.ToCreatedResult(_ => "/auth/me");
   }
 
   private static async Task<IResult> Login(
@@ -54,14 +44,7 @@ public static class AuthEndpoints
   {
     var result = await authService.LoginAsync(request, cancellationToken);
 
-    return result.Status switch
-    {
-      AuthResultStatus.Success => Results.Ok(result.Value),
-      AuthResultStatus.ValidationError => Results.ValidationProblem(
-        result.Errors ?? new Dictionary<string, string[]>()),
-      AuthResultStatus.Unauthorized => Results.Unauthorized(),
-      _ => Results.BadRequest()
-    };
+    return result.ToOkResult();
   }
 
   private static IResult GetCurrentUser(ClaimsPrincipal user)

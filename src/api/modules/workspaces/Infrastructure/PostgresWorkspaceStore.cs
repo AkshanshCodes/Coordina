@@ -1,4 +1,5 @@
-using Coordina.Api.Infrastructure.Persistence;
+using Coordina.Api.Core.Persistence;
+using Coordina.Api.Modules.Auth.Infrastructure;
 using Coordina.Api.Modules.Workspaces.Application;
 using Coordina.Api.Modules.Workspaces.Domain;
 using Microsoft.EntityFrameworkCore;
@@ -9,6 +10,14 @@ namespace Coordina.Api.Modules.Workspaces.Infrastructure;
 public sealed class PostgresWorkspaceStore(CoordinaDbContext dbContext)
   : IWorkspaceStore
 {
+  private DbSet<AuthUserEntity> AuthUsers => dbContext.Set<AuthUserEntity>();
+
+  private DbSet<WorkspaceEntity> Workspaces => dbContext.Set<WorkspaceEntity>();
+
+  private DbSet<WorkspaceMemberEntity> WorkspaceMembers => dbContext.Set<WorkspaceMemberEntity>();
+
+  private DbSet<WorkspaceInviteEntity> WorkspaceInvites => dbContext.Set<WorkspaceInviteEntity>();
+
   public async Task<Workspace> CreateAsync(
     string name,
     Guid ownerUserId,
@@ -32,7 +41,7 @@ public sealed class PostgresWorkspaceStore(CoordinaDbContext dbContext)
       ]
     };
 
-    dbContext.Workspaces.Add(entity);
+    Workspaces.Add(entity);
     await dbContext.SaveChangesAsync(cancellationToken);
 
     return new Workspace(
@@ -46,7 +55,7 @@ public sealed class PostgresWorkspaceStore(CoordinaDbContext dbContext)
     Guid userId,
     CancellationToken cancellationToken)
   {
-    return await dbContext.WorkspaceMembers
+    return await WorkspaceMembers
       .AsNoTracking()
       .Where(member => member.UserId == userId)
       .OrderBy(member => member.Workspace!.Name)
@@ -63,7 +72,7 @@ public sealed class PostgresWorkspaceStore(CoordinaDbContext dbContext)
     Guid userId,
     CancellationToken cancellationToken)
   {
-    return await dbContext.WorkspaceMembers
+    return await WorkspaceMembers
       .AsNoTracking()
       .Where(member => member.WorkspaceId == workspaceId
         && member.UserId == userId)
@@ -80,7 +89,7 @@ public sealed class PostgresWorkspaceStore(CoordinaDbContext dbContext)
     Guid userId,
     CancellationToken cancellationToken)
   {
-    return await dbContext.WorkspaceMembers
+    return await WorkspaceMembers
       .AsNoTracking()
       .Where(member => member.WorkspaceId == workspaceId
         && member.UserId == userId)
@@ -92,7 +101,7 @@ public sealed class PostgresWorkspaceStore(CoordinaDbContext dbContext)
     Guid workspaceId,
     CancellationToken cancellationToken)
   {
-    return await dbContext.Workspaces
+    return await Workspaces
       .AsNoTracking()
       .Where(workspace => workspace.Id == workspaceId)
       .Select(workspace => new Workspace(
@@ -107,11 +116,11 @@ public sealed class PostgresWorkspaceStore(CoordinaDbContext dbContext)
     Guid workspaceId,
     CancellationToken cancellationToken)
   {
-    return await dbContext.WorkspaceMembers
+    return await WorkspaceMembers
       .AsNoTracking()
       .Where(member => member.WorkspaceId == workspaceId)
       .Join(
-        dbContext.AuthUsers.AsNoTracking(),
+        AuthUsers.AsNoTracking(),
         member => member.UserId,
         user => user.Id,
         (member, user) => new
@@ -139,7 +148,7 @@ public sealed class PostgresWorkspaceStore(CoordinaDbContext dbContext)
     DateTimeOffset joinedAt,
     CancellationToken cancellationToken)
   {
-    dbContext.WorkspaceMembers.Add(new WorkspaceMemberEntity
+    WorkspaceMembers.Add(new WorkspaceMemberEntity
     {
       Id = Guid.NewGuid(),
       WorkspaceId = workspaceId,
@@ -177,7 +186,7 @@ public sealed class PostgresWorkspaceStore(CoordinaDbContext dbContext)
       ExpiresAt = expiresAt
     };
 
-    dbContext.WorkspaceInvites.Add(entity);
+    WorkspaceInvites.Add(entity);
     await dbContext.SaveChangesAsync(cancellationToken);
 
     return new WorkspaceInvite(
@@ -192,7 +201,7 @@ public sealed class PostgresWorkspaceStore(CoordinaDbContext dbContext)
     DateTimeOffset now,
     CancellationToken cancellationToken)
   {
-    return await dbContext.WorkspaceInvites
+    return await WorkspaceInvites
       .AsNoTracking()
       .Where(invite => invite.CodeHash == codeHash
         && invite.ConsumedAt == null
@@ -211,7 +220,7 @@ public sealed class PostgresWorkspaceStore(CoordinaDbContext dbContext)
     DateTimeOffset consumedAt,
     CancellationToken cancellationToken)
   {
-    var workspaceId = await dbContext.WorkspaceInvites
+    var workspaceId = await WorkspaceInvites
       .Where(invite => invite.Id == inviteId)
       .Select(invite => (Guid?)invite.WorkspaceId)
       .SingleOrDefaultAsync(cancellationToken);
@@ -224,7 +233,7 @@ public sealed class PostgresWorkspaceStore(CoordinaDbContext dbContext)
     await using var transaction = await dbContext.Database
       .BeginTransactionAsync(cancellationToken);
 
-    var consumed = await dbContext.WorkspaceInvites
+    var consumed = await WorkspaceInvites
       .Where(candidate => candidate.Id == inviteId
         && candidate.ConsumedAt == null
         && candidate.ExpiresAt > consumedAt)
@@ -239,7 +248,7 @@ public sealed class PostgresWorkspaceStore(CoordinaDbContext dbContext)
       return new ConsumeInviteOutcome(ConsumeInviteStatus.Unavailable);
     }
 
-    dbContext.WorkspaceMembers.Add(new WorkspaceMemberEntity
+    WorkspaceMembers.Add(new WorkspaceMemberEntity
     {
       Id = Guid.NewGuid(),
       WorkspaceId = workspaceId.Value,
@@ -278,7 +287,7 @@ public sealed class PostgresWorkspaceStore(CoordinaDbContext dbContext)
     Guid userId,
     CancellationToken cancellationToken)
   {
-    var deleted = await dbContext.WorkspaceMembers
+    var deleted = await WorkspaceMembers
       .Where(member => member.WorkspaceId == workspaceId
         && member.UserId == userId
         && member.Role != WorkspaceRole.Owner)
@@ -291,7 +300,7 @@ public sealed class PostgresWorkspaceStore(CoordinaDbContext dbContext)
     Guid workspaceId,
     CancellationToken cancellationToken)
   {
-    await dbContext.Workspaces
+    await Workspaces
       .Where(workspace => workspace.Id == workspaceId)
       .ExecuteDeleteAsync(cancellationToken);
   }

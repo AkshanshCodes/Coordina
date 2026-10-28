@@ -1,4 +1,5 @@
 using Coordina.Api.Modules.Projects.Domain;
+using Coordina.Api.Shared.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -48,8 +49,8 @@ public sealed class ProjectEntityConfiguration
     builder.Property(project => project.Status)
       .HasColumnName("status")
       .HasConversion(
-        status => status.ToString().ToUpperInvariant(),
-        value => Enum.Parse<ProjectStatus>(value, true))
+        status => EnumCode.Format(status),
+        value => EnumCode.Parse<ProjectStatus>(value))
       .HasMaxLength(16)
       .IsRequired();
 

@@ -1,10 +1,11 @@
+using Coordina.Api.Core.Results;
 using Coordina.Api.Modules.Boards.Contracts;
 
 namespace Coordina.Api.Modules.Boards.Application;
 
 public interface IBoardDependencyService
 {
-  Task<BoardResult<BoardGraphResponse>> GetGraphAsync(
+  Task<Result<BoardGraphResponse>> GetGraphAsync(
     Guid workspaceId,
     Guid projectId,
     Guid boardId,
@@ -12,7 +13,7 @@ public interface IBoardDependencyService
     BoardPlanningRequest planning,
     CancellationToken cancellationToken);
 
-  Task<BoardResult<BoardCardDependencyAnalysisResponse>> GetCardDependencyAnalysisAsync(
+  Task<Result<BoardCardDependencyAnalysisResponse>> GetCardDependencyAnalysisAsync(
     Guid workspaceId,
     Guid projectId,
     Guid boardId,
@@ -20,7 +21,7 @@ public interface IBoardDependencyService
     Guid userId,
     CancellationToken cancellationToken);
 
-  Task<BoardResult<BoardResponse>> AddCardDependencyAsync(
+  Task<Result<BoardResponse>> AddCardDependencyAsync(
     Guid workspaceId,
     Guid projectId,
     Guid boardId,
@@ -29,7 +30,7 @@ public interface IBoardDependencyService
     Guid userId,
     CancellationToken cancellationToken);
 
-  Task<BoardResult<object>> DeleteCardDependencyAsync(
+  Task<Result> DeleteCardDependencyAsync(
     Guid workspaceId,
     Guid projectId,
     Guid boardId,

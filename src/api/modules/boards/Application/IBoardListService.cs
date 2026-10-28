@@ -1,10 +1,11 @@
+using Coordina.Api.Core.Results;
 using Coordina.Api.Modules.Boards.Contracts;
 
 namespace Coordina.Api.Modules.Boards.Application;
 
 public interface IBoardListService
 {
-  Task<BoardResult<BoardResponse>> CreateListAsync(
+  Task<Result<BoardResponse>> CreateListAsync(
     Guid workspaceId,
     Guid projectId,
     Guid boardId,
@@ -12,7 +13,7 @@ public interface IBoardListService
     Guid userId,
     CancellationToken cancellationToken);
 
-  Task<BoardResult<BoardResponse>> UpdateListAsync(
+  Task<Result<BoardResponse>> UpdateListAsync(
     Guid workspaceId,
     Guid projectId,
     Guid boardId,

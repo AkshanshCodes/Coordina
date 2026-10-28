@@ -1,0 +1,75 @@
+using System;
+using Microsoft.EntityFrameworkCore.Migrations;
+
+#nullable disable
+
+namespace Coordina.Api.Core.Persistence.Migrations
+{
+  /// <inheritdoc />
+  public partial class AddProjectTasks : Migration
+  {
+    private static readonly string[] WorkspaceProjectIndexColumns =
+    [
+      "workspace_id",
+      "project_id"
+    ];
+
+    private static readonly string[] WorkspaceProjectStatusIndexColumns =
+    [
+      "workspace_id",
+      "project_id",
+      "status"
+    ];
+
+    /// <inheritdoc />
+    protected override void Up(MigrationBuilder migrationBuilder)
+    {
+      migrationBuilder.CreateTable(
+          name: "tasks",
+          columns: table => new
+          {
+            id = table.Column<Guid>(type: "uuid", nullable: false),
+            project_id = table.Column<Guid>(type: "uuid", nullable: false),
+            workspace_id = table.Column<Guid>(type: "uuid", nullable: false),
+            title = table.Column<string>(type: "character varying(160)", maxLength: 160, nullable: false),
+            description = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
+            status = table.Column<string>(type: "character varying(24)", maxLength: 24, nullable: false),
+            priority = table.Column<string>(type: "character varying(12)", maxLength: 12, nullable: true),
+            created_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+            updated_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
+          },
+          constraints: table =>
+          {
+            table.PrimaryKey("PK_tasks", x => x.id);
+            table.ForeignKey(
+                      name: "FK_tasks_projects_project_id",
+                      column: x => x.project_id,
+                      principalTable: "projects",
+                      principalColumn: "id",
+                      onDelete: ReferentialAction.Cascade);
+          });
+
+      migrationBuilder.CreateIndex(
+          name: "IX_tasks_project_id",
+          table: "tasks",
+          column: "project_id");
+
+      migrationBuilder.CreateIndex(
+          name: "IX_tasks_workspace_id_project_id",
+          table: "tasks",
+          columns: WorkspaceProjectIndexColumns);
+
+      migrationBuilder.CreateIndex(
+          name: "IX_tasks_workspace_id_project_id_status",
+          table: "tasks",
+          columns: WorkspaceProjectStatusIndexColumns);
+    }
+
+    /// <inheritdoc />
+    protected override void Down(MigrationBuilder migrationBuilder)
+    {
+      migrationBuilder.DropTable(
+          name: "tasks");
+    }
+  }
+}

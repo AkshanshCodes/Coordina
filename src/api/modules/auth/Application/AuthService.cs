@@ -1,25 +1,30 @@
 using System.Net.Mail;
+using Coordina.Api.Core.Results;
 using Coordina.Api.Modules.Auth.Contracts;
 using Coordina.Api.Modules.Auth.Domain;
+using Coordina.Api.Shared.Validation;
 
 namespace Coordina.Api.Modules.Auth.Application;
 
 public sealed class AuthService(
   IUserStore users,
   IPasswordHasher passwordHasher,
-  IAccessTokenIssuer accessTokenIssuer) : IAuthService
+  IAccessTokenIssuer accessTokenIssuer,
+  TimeProvider clock) : IAuthService
 {
-  public async Task<AuthResult<AuthResponse>> RegisterAsync(
+  private const string DuplicateEmailMessage =
+    "An account already exists with this email.";
+
+  public async Task<Result<AuthResponse>> RegisterAsync(
     RegisterRequest request,
     CancellationToken cancellationToken)
   {
-    var errors = ValidateRegistration(request);
+    var errors = ValidateLogin(request.Email, request.Password)
+      .Required(nameof(request.Name), request.Name, "Name", minLength: 2);
 
-    if (errors.Count > 0)
+    if (errors.HasErrors)
     {
-      return new AuthResult<AuthResponse>(
-        AuthResultStatus.ValidationError,
-        Errors: errors);
+      return errors.ToError();
     }
 
     var normalizedEmail = NormalizeEmail(request.Email);
@@ -29,9 +34,7 @@ public sealed class AuthService(
 
     if (existingUser is not null)
     {
-      return new AuthResult<AuthResponse>(
-        AuthResultStatus.Conflict,
-        Message: "An account already exists with this email.");
+      return Error.Conflict(DuplicateEmailMessage);
     }
 
     var user = new UserAccount(
@@ -40,33 +43,24 @@ public sealed class AuthService(
       request.Email.Trim(),
       normalizedEmail,
       passwordHasher.Hash(request.Password),
-      DateTimeOffset.UtcNow);
+      clock.GetUtcNow());
 
     var created = await users.CreateAsync(user, cancellationToken);
 
-    if (!created)
-    {
-      return new AuthResult<AuthResponse>(
-        AuthResultStatus.Conflict,
-        Message: "An account already exists with this email.");
-    }
-
-    return new AuthResult<AuthResponse>(
-      AuthResultStatus.Success,
-      CreateAuthResponse(user));
+    return created
+      ? Result.Success(CreateAuthResponse(user))
+      : Error.Conflict(DuplicateEmailMessage);
   }
 
-  public async Task<AuthResult<AuthResponse>> LoginAsync(
+  public async Task<Result<AuthResponse>> LoginAsync(
     LoginRequest request,
     CancellationToken cancellationToken)
   {
-    var errors = ValidateLogin(request);
+    var errors = ValidateLogin(request.Email, request.Password);
 
-    if (errors.Count > 0)
+    if (errors.HasErrors)
     {
-      return new AuthResult<AuthResponse>(
-        AuthResultStatus.ValidationError,
-        Errors: errors);
+      return errors.ToError();
     }
 
     var user = await users.FindByEmailAsync(
@@ -76,12 +70,10 @@ public sealed class AuthService(
     if (user is null
       || !passwordHasher.Verify(request.Password, user.PasswordHash))
     {
-      return new AuthResult<AuthResponse>(AuthResultStatus.Unauthorized);
+      return Error.Unauthorized();
     }
 
-    return new AuthResult<AuthResponse>(
-      AuthResultStatus.Success,
-      CreateAuthResponse(user));
+    return Result.Success(CreateAuthResponse(user));
   }
 
   private AuthResponse CreateAuthResponse(UserAccount user)
@@ -94,43 +86,16 @@ public sealed class AuthService(
       new CurrentUserResponse(user.Id.ToString(), user.Email, user.Name));
   }
 
-  private static Dictionary<string, string[]> ValidateRegistration(
-    RegisterRequest request)
-  {
-    var errors = ValidateLogin(new LoginRequest(
-      request.Email,
-      request.Password));
-
-    if (string.IsNullOrWhiteSpace(request.Name))
-    {
-      errors[nameof(request.Name)] = ["Name is required."];
-    }
-    else if (request.Name.Trim().Length < 2)
-    {
-      errors[nameof(request.Name)] = ["Name must be at least 2 characters."];
-    }
-
-    return errors;
-  }
-
-  private static Dictionary<string, string[]> ValidateLogin(LoginRequest request)
-  {
-    var errors = new Dictionary<string, string[]>();
-
-    if (string.IsNullOrWhiteSpace(request.Email) || !IsValidEmail(request.Email))
-    {
-      errors[nameof(request.Email)] = ["A valid email is required."];
-    }
-
-    if (string.IsNullOrWhiteSpace(request.Password)
-      || request.Password.Length < 8)
-    {
-      errors[nameof(request.Password)] =
-        ["Password must be at least 8 characters."];
-    }
-
-    return errors;
-  }
+  private static ValidationErrors ValidateLogin(string? email, string? password) =>
+    new ValidationErrors()
+      .AddIf(
+        string.IsNullOrWhiteSpace(email) || !IsValidEmail(email),
+        nameof(LoginRequest.Email),
+        "A valid email is required.")
+      .AddIf(
+        string.IsNullOrWhiteSpace(password) || password.Length < 8,
+        nameof(LoginRequest.Password),
+        "Password must be at least 8 characters.");
 
   private static bool IsValidEmail(string email)
   {

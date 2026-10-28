@@ -1,4 +1,5 @@
-using Coordina.Api.Infrastructure.Persistence;
+using Coordina.Api.Core.Persistence;
+using Coordina.Api.Modules.Auth.Infrastructure;
 using Coordina.Api.Modules.Boards.Application;
 using Coordina.Api.Modules.Boards.Domain;
 using Microsoft.EntityFrameworkCore;
@@ -8,12 +9,28 @@ namespace Coordina.Api.Modules.Boards.Infrastructure;
 public sealed class PostgresBoardStore(CoordinaDbContext dbContext)
   : IBoardStore
 {
+  private DbSet<AuthUserEntity> AuthUsers => dbContext.Set<AuthUserEntity>();
+
+  private DbSet<BoardEntity> Boards => dbContext.Set<BoardEntity>();
+
+  private DbSet<BoardListEntity> BoardLists => dbContext.Set<BoardListEntity>();
+
+  private DbSet<BoardCardEntity> BoardCards => dbContext.Set<BoardCardEntity>();
+
+  private DbSet<BoardCardAssigneeEntity> BoardCardAssignees => dbContext.Set<BoardCardAssigneeEntity>();
+
+  private DbSet<BoardCardCommentEntity> BoardCardComments => dbContext.Set<BoardCardCommentEntity>();
+
+  private DbSet<BoardCardSubtaskEntity> BoardCardSubtasks => dbContext.Set<BoardCardSubtaskEntity>();
+
+  private DbSet<BoardCardDependencyEntity> BoardCardDependencies => dbContext.Set<BoardCardDependencyEntity>();
+
   public async Task<ProjectBoard?> FindDefaultForProjectAsync(
     Guid workspaceId,
     Guid projectId,
     CancellationToken cancellationToken)
   {
-    var boardId = await dbContext.Boards
+    var boardId = await Boards
       .AsNoTracking()
       .Where(board => board.WorkspaceId == workspaceId
         && board.ProjectId == projectId)
@@ -36,7 +53,7 @@ public sealed class PostgresBoardStore(CoordinaDbContext dbContext)
     Guid boardId,
     CancellationToken cancellationToken)
   {
-    var board = await dbContext.Boards
+    var board = await Boards
       .AsNoTracking()
       .Where(board => board.WorkspaceId == workspaceId
         && board.ProjectId == projectId
@@ -48,7 +65,7 @@ public sealed class PostgresBoardStore(CoordinaDbContext dbContext)
       return null;
     }
 
-    var lists = await dbContext.BoardLists
+    var lists = await BoardLists
       .AsNoTracking()
       .Where(list => list.WorkspaceId == workspaceId
         && list.ProjectId == projectId
@@ -56,7 +73,7 @@ public sealed class PostgresBoardStore(CoordinaDbContext dbContext)
       .OrderBy(list => list.Position)
       .ToArrayAsync(cancellationToken);
 
-    var cards = await dbContext.BoardCards
+    var cards = await BoardCards
       .AsNoTracking()
       .Where(card => card.WorkspaceId == workspaceId
         && card.ProjectId == projectId
@@ -69,11 +86,11 @@ public sealed class PostgresBoardStore(CoordinaDbContext dbContext)
       .Select(card => card.CompletedByUserId)
       .OfType<Guid>()
       .ToArray();
-    var assignees = await dbContext.BoardCardAssignees
+    var assignees = await BoardCardAssignees
       .AsNoTracking()
       .Where(assignee => cardIds.Contains(assignee.CardId))
       .Join(
-        dbContext.AuthUsers.AsNoTracking(),
+        AuthUsers.AsNoTracking(),
         assignee => assignee.UserId,
         user => user.Id,
         (assignee, user) => new
@@ -84,11 +101,11 @@ public sealed class PostgresBoardStore(CoordinaDbContext dbContext)
           user.Email
         })
       .ToArrayAsync(cancellationToken);
-    var comments = await dbContext.BoardCardComments
+    var comments = await BoardCardComments
       .AsNoTracking()
       .Where(comment => cardIds.Contains(comment.CardId))
       .Join(
-        dbContext.AuthUsers.AsNoTracking(),
+        AuthUsers.AsNoTracking(),
         comment => comment.UserId,
         user => user.Id,
         (comment, user) => new ProjectBoardCardComment(
@@ -98,7 +115,7 @@ public sealed class PostgresBoardStore(CoordinaDbContext dbContext)
           comment.Body,
           comment.CreatedAt))
       .ToArrayAsync(cancellationToken);
-    var subtasks = await dbContext.BoardCardSubtasks
+    var subtasks = await BoardCardSubtasks
       .AsNoTracking()
       .Where(subtask => cardIds.Contains(subtask.CardId))
       .OrderBy(subtask => subtask.Position)
@@ -111,12 +128,12 @@ public sealed class PostgresBoardStore(CoordinaDbContext dbContext)
       .Concat(subtaskCompletedUserIds)
       .Distinct()
       .ToArray();
-    var users = await dbContext.AuthUsers
+    var users = await AuthUsers
       .AsNoTracking()
       .Where(user => userIds.Contains(user.Id))
       .Select(user => new ProjectBoardCardUser(user.Id, user.Name, user.Email))
       .ToDictionaryAsync(user => user.UserId, cancellationToken);
-    var dependencies = await dbContext.BoardCardDependencies
+    var dependencies = await BoardCardDependencies
       .AsNoTracking()
       .Where(dependency => cardIds.Contains(dependency.CardId))
       .ToArrayAsync(cancellationToken);
@@ -274,7 +291,7 @@ public sealed class PostgresBoardStore(CoordinaDbContext dbContext)
       board.Lists.Add(list);
     }
 
-    dbContext.Boards.Add(board);
+    Boards.Add(board);
     await dbContext.SaveChangesAsync(cancellationToken);
 
     return await FindInProjectAsync(
@@ -305,14 +322,14 @@ public sealed class PostgresBoardStore(CoordinaDbContext dbContext)
       return null;
     }
 
-    var nextPosition = await dbContext.BoardLists
+    var nextPosition = await BoardLists
       .Where(list => list.WorkspaceId == workspaceId
         && list.ProjectId == projectId
         && list.BoardId == boardId)
       .Select(list => (int?)list.Position)
       .MaxAsync(cancellationToken) + 1 ?? 0;
 
-    dbContext.BoardLists.Add(new BoardListEntity
+    BoardLists.Add(new BoardListEntity
     {
       Id = Guid.NewGuid(),
       WorkspaceId = workspaceId,
@@ -344,7 +361,7 @@ public sealed class PostgresBoardStore(CoordinaDbContext dbContext)
     DateTimeOffset updatedAt,
     CancellationToken cancellationToken)
   {
-    var updated = await dbContext.BoardLists
+    var updated = await BoardLists
       .Where(list => list.WorkspaceId == workspaceId
         && list.ProjectId == projectId
         && list.BoardId == boardId
@@ -407,7 +424,7 @@ public sealed class PostgresBoardStore(CoordinaDbContext dbContext)
       return null;
     }
 
-    var nextPosition = await dbContext.BoardCards
+    var nextPosition = await BoardCards
       .Where(card => card.WorkspaceId == workspaceId
         && card.ProjectId == projectId
         && card.BoardId == boardId
@@ -444,7 +461,7 @@ public sealed class PostgresBoardStore(CoordinaDbContext dbContext)
         .ToArray()
     };
 
-    dbContext.BoardCards.Add(card);
+    BoardCards.Add(card);
     await TouchBoardAsync(boardId, createdAt, cancellationToken);
     await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -465,7 +482,7 @@ public sealed class PostgresBoardStore(CoordinaDbContext dbContext)
     DateTimeOffset updatedAt,
     CancellationToken cancellationToken)
   {
-    var card = await dbContext.BoardCards
+    var card = await BoardCards
       .Include(card => card.Assignees)
       .SingleOrDefaultAsync(card => card.WorkspaceId == workspaceId
         && card.ProjectId == projectId
@@ -518,10 +535,10 @@ public sealed class PostgresBoardStore(CoordinaDbContext dbContext)
       .Select(assignee => assignee.UserId)
       .ToHashSet();
 
-    dbContext.BoardCardAssignees.RemoveRange(
+    BoardCardAssignees.RemoveRange(
       existingAssignees.Where(assignee => !requestedAssigneeIds.Contains(assignee.UserId)));
 
-    dbContext.BoardCardAssignees.AddRange(
+    BoardCardAssignees.AddRange(
       requestedAssigneeIds
         .Where(assigneeId => !existingAssigneeIds.Contains(assigneeId))
         .Select(assigneeId => new BoardCardAssigneeEntity
@@ -571,7 +588,7 @@ public sealed class PostgresBoardStore(CoordinaDbContext dbContext)
       listId,
       cancellationToken);
 
-    var updated = await dbContext.BoardCards
+    var updated = await BoardCards
       .Where(card => card.WorkspaceId == workspaceId
         && card.ProjectId == projectId
         && card.BoardId == boardId
@@ -621,7 +638,7 @@ public sealed class PostgresBoardStore(CoordinaDbContext dbContext)
       return null;
     }
 
-    dbContext.BoardCardComments.Add(new BoardCardCommentEntity
+    BoardCardComments.Add(new BoardCardCommentEntity
     {
       Id = Guid.NewGuid(),
       CardId = cardId,
@@ -662,12 +679,12 @@ public sealed class PostgresBoardStore(CoordinaDbContext dbContext)
       return null;
     }
 
-    var nextPosition = await dbContext.BoardCardSubtasks
+    var nextPosition = await BoardCardSubtasks
       .Where(subtask => subtask.CardId == cardId)
       .Select(subtask => (int?)subtask.Position)
       .MaxAsync(cancellationToken) + 1 ?? 0;
 
-    dbContext.BoardCardSubtasks.Add(new BoardCardSubtaskEntity
+    BoardCardSubtasks.Add(new BoardCardSubtaskEntity
     {
       Id = Guid.NewGuid(),
       CardId = cardId,
@@ -713,7 +730,7 @@ public sealed class PostgresBoardStore(CoordinaDbContext dbContext)
       return null;
     }
 
-    var subtask = await dbContext.BoardCardSubtasks
+    var subtask = await BoardCardSubtasks
       .SingleOrDefaultAsync(subtask => subtask.CardId == cardId
         && subtask.Id == subtaskId,
         cancellationToken);
@@ -769,7 +786,7 @@ public sealed class PostgresBoardStore(CoordinaDbContext dbContext)
       return false;
     }
 
-    var deleted = await dbContext.BoardCardSubtasks
+    var deleted = await BoardCardSubtasks
       .Where(subtask => subtask.CardId == cardId && subtask.Id == subtaskId)
       .ExecuteDeleteAsync(cancellationToken);
 
@@ -811,14 +828,14 @@ public sealed class PostgresBoardStore(CoordinaDbContext dbContext)
       return null;
     }
 
-    var alreadyLinked = await dbContext.BoardCardDependencies
+    var alreadyLinked = await BoardCardDependencies
       .AnyAsync(dependency => dependency.CardId == cardId
         && dependency.DependsOnCardId == dependsOnCardId,
         cancellationToken);
 
     if (!alreadyLinked)
     {
-      dbContext.BoardCardDependencies.Add(new BoardCardDependencyEntity
+      BoardCardDependencies.Add(new BoardCardDependencyEntity
       {
         Id = Guid.NewGuid(),
         CardId = cardId,
@@ -859,7 +876,7 @@ public sealed class PostgresBoardStore(CoordinaDbContext dbContext)
       return false;
     }
 
-    var deleted = await dbContext.BoardCardDependencies
+    var deleted = await BoardCardDependencies
       .Where(dependency => dependency.CardId == cardId
         && dependency.DependsOnCardId == dependsOnCardId)
       .ExecuteDeleteAsync(cancellationToken);
@@ -894,12 +911,12 @@ public sealed class PostgresBoardStore(CoordinaDbContext dbContext)
       return false;
     }
 
-    await dbContext.BoardCardDependencies
+    await BoardCardDependencies
       .Where(dependency => dependency.CardId == cardId
         || dependency.DependsOnCardId == cardId)
       .ExecuteDeleteAsync(cancellationToken);
 
-    var deleted = await dbContext.BoardCards
+    var deleted = await BoardCards
       .Where(card => card.Id == cardId)
       .ExecuteDeleteAsync(cancellationToken);
 
@@ -912,7 +929,7 @@ public sealed class PostgresBoardStore(CoordinaDbContext dbContext)
     Guid boardId,
     CancellationToken cancellationToken)
   {
-    return await dbContext.Boards
+    return await Boards
       .AsNoTracking()
       .AnyAsync(board => board.WorkspaceId == workspaceId
         && board.ProjectId == projectId
@@ -927,7 +944,7 @@ public sealed class PostgresBoardStore(CoordinaDbContext dbContext)
     Guid listId,
     CancellationToken cancellationToken)
   {
-    return await dbContext.BoardLists
+    return await BoardLists
       .AsNoTracking()
       .AnyAsync(list => list.WorkspaceId == workspaceId
         && list.ProjectId == projectId
@@ -943,7 +960,7 @@ public sealed class PostgresBoardStore(CoordinaDbContext dbContext)
     Guid listId,
     CancellationToken cancellationToken)
   {
-    return await dbContext.BoardCards
+    return await BoardCards
       .Where(card => card.WorkspaceId == workspaceId
         && card.ProjectId == projectId
         && card.BoardId == boardId
@@ -959,7 +976,7 @@ public sealed class PostgresBoardStore(CoordinaDbContext dbContext)
     Guid cardId,
     CancellationToken cancellationToken)
   {
-    return await dbContext.BoardCards
+    return await BoardCards
       .AsNoTracking()
       .AnyAsync(card => card.WorkspaceId == workspaceId
         && card.ProjectId == projectId
@@ -973,7 +990,7 @@ public sealed class PostgresBoardStore(CoordinaDbContext dbContext)
     DateTimeOffset updatedAt,
     CancellationToken cancellationToken)
   {
-    await dbContext.BoardCards
+    await BoardCards
       .Where(card => card.Id == cardId)
       .ExecuteUpdateAsync(setters => setters
         .SetProperty(card => card.UpdatedAt, updatedAt),
@@ -985,7 +1002,7 @@ public sealed class PostgresBoardStore(CoordinaDbContext dbContext)
     DateTimeOffset updatedAt,
     CancellationToken cancellationToken)
   {
-    await dbContext.Boards
+    await Boards
       .Where(board => board.Id == boardId)
       .ExecuteUpdateAsync(setters => setters
         .SetProperty(board => board.UpdatedAt, updatedAt),

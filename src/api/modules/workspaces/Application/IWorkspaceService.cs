@@ -1,10 +1,11 @@
+using Coordina.Api.Core.Results;
 using Coordina.Api.Modules.Workspaces.Contracts;
 
 namespace Coordina.Api.Modules.Workspaces.Application;
 
 public interface IWorkspaceService
 {
-  Task<WorkspaceResult<WorkspaceResponse>> CreateAsync(
+  Task<Result<WorkspaceResponse>> CreateAsync(
     CreateWorkspaceRequest request,
     Guid userId,
     CancellationToken cancellationToken);
@@ -13,33 +14,33 @@ public interface IWorkspaceService
     Guid userId,
     CancellationToken cancellationToken);
 
-  Task<WorkspaceResult<WorkspaceResponse>> GetAsync(
+  Task<Result<WorkspaceResponse>> GetAsync(
     Guid workspaceId,
     Guid userId,
     CancellationToken cancellationToken);
 
-  Task<WorkspaceResult<WorkspaceResponse>> JoinAsync(
+  Task<Result<WorkspaceResponse>> JoinAsync(
     JoinWorkspaceRequest request,
     Guid userId,
     CancellationToken cancellationToken);
 
-  Task<WorkspaceResult<CreateWorkspaceInviteResponse>> CreateInviteAsync(
+  Task<Result<CreateWorkspaceInviteResponse>> CreateInviteAsync(
     Guid workspaceId,
     Guid userId,
     CancellationToken cancellationToken);
 
-  Task<WorkspaceResult<IReadOnlyCollection<WorkspaceMemberResponse>>> ListMembersAsync(
+  Task<Result<IReadOnlyCollection<WorkspaceMemberResponse>>> ListMembersAsync(
     Guid workspaceId,
     Guid userId,
     CancellationToken cancellationToken);
 
-  Task<WorkspaceResult<object>> RemoveMemberAsync(
+  Task<Result> RemoveMemberAsync(
     Guid workspaceId,
     Guid memberUserId,
     Guid currentUserId,
     CancellationToken cancellationToken);
 
-  Task<WorkspaceResult<object>> DeleteAsync(
+  Task<Result> DeleteAsync(
     Guid workspaceId,
     Guid userId,
     CancellationToken cancellationToken);

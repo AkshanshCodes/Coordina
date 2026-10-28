@@ -1,16 +1,21 @@
+using Coordina.Api.Core.Results;
+using Coordina.Api.Core.Time;
 using Coordina.Api.Modules.Boards.Contracts;
 using Coordina.Api.Modules.Boards.Domain;
 using Coordina.Api.Modules.Projects.Application;
 using Coordina.Api.Modules.Workspaces.Application;
+using Coordina.Api.Shared.Enums;
+using Coordina.Api.Shared.Text;
 
 namespace Coordina.Api.Modules.Boards.Application;
 
 public sealed class BoardCardService(
   IBoardStore boards,
   IWorkspaceStore workspaces,
-  IProjectAccessGuard projectAccess) : IBoardCardService
+  IProjectAccessGuard projectAccess,
+  TimeProvider clock) : IBoardCardService
 {
-  public async Task<BoardResult<BoardResponse>> CreateCardAsync(
+  public async Task<Result<BoardResponse>> CreateCardAsync(
     Guid workspaceId,
     Guid projectId,
     Guid boardId,
@@ -32,15 +37,12 @@ public sealed class BoardCardService(
       request.AssigneeIds,
       false,
       null,
-      DateTimeOffset.UtcNow,
+      clock.GetUtcNow(),
       cancellationToken);
 
-    if (mutation.Status != BoardResultStatus.Success)
+    if (!mutation.IsSuccess)
     {
-      return new BoardResult<BoardResponse>(
-        mutation.Status,
-        Errors: mutation.Errors,
-        Message: mutation.Message);
+      return mutation.Error;
     }
 
     var current = await boards.FindInProjectAsync(
@@ -52,17 +54,17 @@ public sealed class BoardCardService(
 
     if (list is null)
     {
-      return new BoardResult<BoardResponse>(BoardResultStatus.NotFound);
+      return Error.NotFound();
     }
 
-    var createdAt = DateTimeOffset.UtcNow;
+    var createdAt = clock.GetUtcNow();
     var completion = BoardWorkflow.CompletionIn(list, null, userId, createdAt);
     var board = await boards.CreateCardAsync(
       workspaceId,
       projectId,
       boardId,
       listId,
-      mutation.Value! with
+      mutation.Value with
       {
         IsCompleted = completion.IsCompleted,
         CompletedAt = completion.CompletedAt,
@@ -72,13 +74,11 @@ public sealed class BoardCardService(
       cancellationToken);
 
     return board is null
-      ? new BoardResult<BoardResponse>(BoardResultStatus.NotFound)
-      : new BoardResult<BoardResponse>(
-        BoardResultStatus.Success,
-        BoardResponseMapper.ToResponse(board));
+      ? Error.NotFound()
+      : Result.Success(BoardResponseMapper.ToResponse(board));
   }
 
-  public async Task<BoardResult<BoardResponse>> UpdateCardAsync(
+  public async Task<Result<BoardResponse>> UpdateCardAsync(
     Guid workspaceId,
     Guid projectId,
     Guid boardId,
@@ -98,7 +98,7 @@ public sealed class BoardCardService(
 
     if (currentBoard is null || current is null)
     {
-      return new BoardResult<BoardResponse>(BoardResultStatus.NotFound);
+      return Error.NotFound();
     }
 
     var mutation = await BuildCardMutationAsync(
@@ -107,7 +107,7 @@ public sealed class BoardCardService(
       userId,
       request.Title ?? current.Title,
       request.Description ?? current.Description,
-      request.Priority is null ? current.Priority?.ToString() : request.Priority,
+      request.Priority ?? (current.Priority is null ? null : EnumCode.Format(current.Priority.Value)),
       request.ClearDueDate ? null : request.DueDate ?? current.DueDate,
       request.ClearEstimatedMinutes
         ? null
@@ -116,20 +116,17 @@ public sealed class BoardCardService(
       request.AssigneeIds ?? current.Assignees.Select(assignee => assignee.UserId).ToArray(),
       request.IsCompleted ?? current.IsCompleted,
       current,
-      DateTimeOffset.UtcNow,
+      clock.GetUtcNow(),
       cancellationToken);
 
-    if (mutation.Status != BoardResultStatus.Success)
+    if (!mutation.IsSuccess)
     {
-      return new BoardResult<BoardResponse>(
-        mutation.Status,
-        Errors: mutation.Errors,
-        Message: mutation.Message);
+      return mutation.Error;
     }
 
     var targetListId = current.ListId;
 
-    if (mutation.Value!.IsCompleted != current.IsCompleted)
+    if (mutation.Value.IsCompleted != current.IsCompleted)
     {
       var targetStatus = mutation.Value.IsCompleted
         ? BoardTaskStatus.Done
@@ -138,11 +135,9 @@ public sealed class BoardCardService(
 
       if (targetList is null)
       {
-        return new BoardResult<BoardResponse>(
-          BoardResultStatus.Conflict,
-          Message: mutation.Value.IsCompleted
-            ? "Add a list with status DONE to this board before completing cards."
-            : "Add a list with status TODO to this board before reopening cards.");
+        return Error.Conflict(mutation.Value.IsCompleted
+          ? "Add a list with status DONE to this board before completing cards."
+          : "Add a list with status TODO to this board before reopening cards.");
       }
 
       targetListId = targetList.Id;
@@ -155,17 +150,15 @@ public sealed class BoardCardService(
       cardId,
       targetListId,
       mutation.Value,
-      DateTimeOffset.UtcNow,
+      clock.GetUtcNow(),
       cancellationToken);
 
     return board is null
-      ? new BoardResult<BoardResponse>(BoardResultStatus.NotFound)
-      : new BoardResult<BoardResponse>(
-        BoardResultStatus.Success,
-        BoardResponseMapper.ToResponse(board));
+      ? Error.NotFound()
+      : Result.Success(BoardResponseMapper.ToResponse(board));
   }
 
-  public async Task<BoardResult<BoardResponse>> MoveCardAsync(
+  public async Task<Result<BoardResponse>> MoveCardAsync(
     Guid workspaceId,
     Guid projectId,
     Guid boardId,
@@ -174,25 +167,20 @@ public sealed class BoardCardService(
     Guid userId,
     CancellationToken cancellationToken)
   {
-    var access = await projectAccess.FindWritableAccessAsync(
+    var access = await projectAccess.AuthorizeWriteAsync(
       workspaceId,
       projectId,
       userId,
       cancellationToken);
 
-    if (access.Status != ProjectAccessStatus.Granted)
+    if (!access.IsSuccess)
     {
-      return BoardResults.AccessFailure<BoardResponse>(access.Status);
+      return access.Error;
     }
 
     if (request.ListId == Guid.Empty)
     {
-      return new BoardResult<BoardResponse>(
-        BoardResultStatus.ValidationError,
-        Errors: new Dictionary<string, string[]>
-        {
-          [nameof(request.ListId)] = ["Target list is required."]
-        });
+      return Error.Validation(nameof(request.ListId), "Target list is required.");
     }
 
     var current = await boards.FindInProjectAsync(
@@ -208,10 +196,10 @@ public sealed class BoardCardService(
 
     if (targetList is null || card is null)
     {
-      return new BoardResult<BoardResponse>(BoardResultStatus.NotFound);
+      return Error.NotFound();
     }
 
-    var movedAt = DateTimeOffset.UtcNow;
+    var movedAt = clock.GetUtcNow();
     var board = await boards.MoveCardAsync(
       workspaceId,
       projectId,
@@ -223,13 +211,11 @@ public sealed class BoardCardService(
       cancellationToken);
 
     return board is null
-      ? new BoardResult<BoardResponse>(BoardResultStatus.NotFound)
-      : new BoardResult<BoardResponse>(
-        BoardResultStatus.Success,
-        BoardResponseMapper.ToResponse(board));
+      ? Error.NotFound()
+      : Result.Success(BoardResponseMapper.ToResponse(board));
   }
 
-  public async Task<BoardResult<object>> DeleteCardAsync(
+  public async Task<Result> DeleteCardAsync(
     Guid workspaceId,
     Guid projectId,
     Guid boardId,
@@ -237,22 +223,21 @@ public sealed class BoardCardService(
     Guid userId,
     CancellationToken cancellationToken)
   {
-    var access = await projectAccess.FindWritableAccessAsync(
+    var access = await projectAccess.AuthorizeWriteAsync(
       workspaceId,
       projectId,
       userId,
       cancellationToken);
 
-    if (access.Status != ProjectAccessStatus.Granted)
+    if (!access.IsSuccess)
     {
-      return BoardResults.AccessFailure<object>(access.Status);
+      return access.Error;
     }
 
-    if (!access.Access!.CanManageDestructiveActions(userId))
+    if (!access.Value.CanManage(userId))
     {
-      return new BoardResult<object>(
-        BoardResultStatus.Forbidden,
-        Message: "Only workspace owners or project owners can delete cards.");
+      return Error.Forbidden(
+        "Only workspace owners or project owners can delete cards.");
     }
 
     var deleted = await boards.DeleteCardAsync(
@@ -262,12 +247,10 @@ public sealed class BoardCardService(
       cardId,
       cancellationToken);
 
-    return deleted
-      ? new BoardResult<object>(BoardResultStatus.Success)
-      : new BoardResult<object>(BoardResultStatus.NotFound);
+    return deleted ? Result.Success() : Error.NotFound();
   }
 
-  private async Task<BoardResult<BoardCardMutation>> BuildCardMutationAsync(
+  private async Task<Result<BoardCardMutation>> BuildCardMutationAsync(
     Guid workspaceId,
     Guid projectId,
     Guid userId,
@@ -283,18 +266,17 @@ public sealed class BoardCardService(
     DateTimeOffset updatedAt,
     CancellationToken cancellationToken)
   {
-    var access = await projectAccess.FindWritableAccessAsync(
+    var access = await projectAccess.AuthorizeWriteAsync(
       workspaceId,
       projectId,
       userId,
       cancellationToken);
 
-    if (access.Status != ProjectAccessStatus.Granted)
+    if (!access.IsSuccess)
     {
-      return BoardResults.AccessFailure<BoardCardMutation>(access.Status);
+      return access.Error;
     }
 
-    var parsedPriority = BoardRules.ParsePriority(priority, out var priorityError);
     var normalizedLabels = BoardRules.NormalizeLabels(labels);
     var normalizedAssignees = (assigneeIds ?? [])
       .Where(id => id != Guid.Empty)
@@ -303,10 +285,12 @@ public sealed class BoardCardService(
     var errors = BoardRules.ValidateCard(
       title,
       description,
-      priorityError,
+      priority,
       normalizedLabels,
       dueDate,
-      estimatedMinutes);
+      estimatedMinutes,
+      clock.GetUtcToday(),
+      out var parsedPriority);
 
     if (normalizedAssignees.Length > 0)
     {
@@ -314,43 +298,34 @@ public sealed class BoardCardService(
         workspaceId,
         cancellationToken);
       var memberIds = members.Select(member => member.UserId).ToHashSet();
-      var invalidAssignees = normalizedAssignees
-        .Where(assigneeId => !memberIds.Contains(assigneeId))
-        .ToArray();
 
-      if (invalidAssignees.Length > 0)
-      {
-        errors["AssigneeIds"] = [
-          "All assignees must belong to the workspace."
-        ];
-      }
+      errors.AddIf(
+        normalizedAssignees.Any(assigneeId => !memberIds.Contains(assigneeId)),
+        "AssigneeIds",
+        "All assignees must belong to the workspace.");
     }
 
-    if (errors.Count > 0)
+    if (errors.HasErrors)
     {
-      return new BoardResult<BoardCardMutation>(
-        BoardResultStatus.ValidationError,
-        Errors: errors);
+      return errors.ToError();
     }
 
-    return new BoardResult<BoardCardMutation>(
-      BoardResultStatus.Success,
-      new BoardCardMutation(
-        title!.Trim(),
-        description is null && current is not null
-          ? current.Description
-          : BoardRules.NormalizeText(description),
-        parsedPriority,
-        dueDate,
-        estimatedMinutes,
-        normalizedLabels,
-        normalizedAssignees,
-        isCompleted,
-        isCompleted
-          ? current?.CompletedAt ?? updatedAt
-          : null,
-        isCompleted
-          ? current?.CompletedBy?.UserId ?? userId
-          : null));
+    return Result.Success(new BoardCardMutation(
+      title!.Trim(),
+      description is null && current is not null
+        ? current.Description
+        : TextNormalizer.TrimToNull(description),
+      parsedPriority,
+      dueDate,
+      estimatedMinutes,
+      normalizedLabels,
+      normalizedAssignees,
+      isCompleted,
+      isCompleted
+        ? current?.CompletedAt ?? updatedAt
+        : null,
+      isCompleted
+        ? current?.CompletedBy?.UserId ?? userId
+        : null));
   }
 }

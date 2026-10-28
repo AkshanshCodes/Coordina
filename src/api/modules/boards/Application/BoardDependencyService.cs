@@ -1,3 +1,5 @@
+using Coordina.Api.Core.Results;
+using Coordina.Api.Core.Time;
 using Coordina.Api.Modules.Boards.Application.Graph;
 using Coordina.Api.Modules.Boards.Contracts;
 using Coordina.Api.Modules.Projects.Application;
@@ -7,9 +9,10 @@ namespace Coordina.Api.Modules.Boards.Application;
 public sealed class BoardDependencyService(
   IBoardStore boards,
   IProjectAccessGuard projectAccess,
-  IGraphEngine<Guid> graphEngine) : IBoardDependencyService
+  IGraphEngine<Guid> graphEngine,
+  TimeProvider clock) : IBoardDependencyService
 {
-  public async Task<BoardResult<BoardGraphResponse>> GetGraphAsync(
+  public async Task<Result<BoardGraphResponse>> GetGraphAsync(
     Guid workspaceId,
     Guid projectId,
     Guid boardId,
@@ -17,27 +20,22 @@ public sealed class BoardDependencyService(
     BoardPlanningRequest planning,
     CancellationToken cancellationToken)
   {
-    var preferences = BoardPlanningPreferences.Parse(
-      planning,
-      userId,
-      out var errors);
+    var preferences = BoardPlanningPreferences.Parse(planning, userId);
 
-    if (preferences is null)
+    if (!preferences.IsSuccess)
     {
-      return new BoardResult<BoardGraphResponse>(
-        BoardResultStatus.ValidationError,
-        Errors: errors);
+      return preferences.Error;
     }
 
-    var access = await projectAccess.FindAccessAsync(
+    var access = await projectAccess.AuthorizeReadAsync(
       workspaceId,
       projectId,
       userId,
       cancellationToken);
 
-    if (access is null)
+    if (!access.IsSuccess)
     {
-      return new BoardResult<BoardGraphResponse>(BoardResultStatus.NotFound);
+      return access.Error;
     }
 
     var board = await boards.FindInProjectAsync(
@@ -47,14 +45,16 @@ public sealed class BoardDependencyService(
       cancellationToken);
 
     return board is null
-      ? new BoardResult<BoardGraphResponse>(BoardResultStatus.NotFound)
-      : new BoardResult<BoardGraphResponse>(
-        BoardResultStatus.Success,
-        BoardGraphResponseMapper.ToResponse(
-          BoardDependencyGraph.AnalyzeBoard(graphEngine, board, preferences)));
+      ? Error.NotFound()
+      : Result.Success(BoardGraphResponseMapper.ToResponse(
+        BoardDependencyGraph.AnalyzeBoard(
+          graphEngine,
+          board,
+          preferences.Value,
+          clock.GetUtcToday())));
   }
 
-  public async Task<BoardResult<BoardCardDependencyAnalysisResponse>> GetCardDependencyAnalysisAsync(
+  public async Task<Result<BoardCardDependencyAnalysisResponse>> GetCardDependencyAnalysisAsync(
     Guid workspaceId,
     Guid projectId,
     Guid boardId,
@@ -62,16 +62,15 @@ public sealed class BoardDependencyService(
     Guid userId,
     CancellationToken cancellationToken)
   {
-    var access = await projectAccess.FindAccessAsync(
+    var access = await projectAccess.AuthorizeReadAsync(
       workspaceId,
       projectId,
       userId,
       cancellationToken);
 
-    if (access is null)
+    if (!access.IsSuccess)
     {
-      return new BoardResult<BoardCardDependencyAnalysisResponse>(
-        BoardResultStatus.NotFound);
+      return access.Error;
     }
 
     var board = await boards.FindInProjectAsync(
@@ -82,8 +81,7 @@ public sealed class BoardDependencyService(
 
     if (board is null)
     {
-      return new BoardResult<BoardCardDependencyAnalysisResponse>(
-        BoardResultStatus.NotFound);
+      return Error.NotFound();
     }
 
     var analysis = BoardDependencyGraph.AnalyzeCard(
@@ -92,14 +90,11 @@ public sealed class BoardDependencyService(
       cardId);
 
     return analysis is null
-      ? new BoardResult<BoardCardDependencyAnalysisResponse>(
-        BoardResultStatus.NotFound)
-      : new BoardResult<BoardCardDependencyAnalysisResponse>(
-        BoardResultStatus.Success,
-        BoardGraphResponseMapper.ToResponse(analysis));
+      ? Error.NotFound()
+      : Result.Success(BoardGraphResponseMapper.ToResponse(analysis));
   }
 
-  public async Task<BoardResult<BoardResponse>> AddCardDependencyAsync(
+  public async Task<Result<BoardResponse>> AddCardDependencyAsync(
     Guid workspaceId,
     Guid projectId,
     Guid boardId,
@@ -108,25 +103,22 @@ public sealed class BoardDependencyService(
     Guid userId,
     CancellationToken cancellationToken)
   {
-    var access = await projectAccess.FindWritableAccessAsync(
+    var access = await projectAccess.AuthorizeWriteAsync(
       workspaceId,
       projectId,
       userId,
       cancellationToken);
 
-    if (access.Status != ProjectAccessStatus.Granted)
+    if (!access.IsSuccess)
     {
-      return BoardResults.AccessFailure<BoardResponse>(access.Status);
+      return access.Error;
     }
 
     if (request.DependsOnCardId == Guid.Empty || request.DependsOnCardId == cardId)
     {
-      return new BoardResult<BoardResponse>(
-        BoardResultStatus.ValidationError,
-        Errors: new Dictionary<string, string[]>
-        {
-          [nameof(request.DependsOnCardId)] = ["Choose another card from this board."]
-        });
+      return Error.Validation(
+        nameof(request.DependsOnCardId),
+        "Choose another card from this board.");
     }
 
     var boardSnapshot = await boards.FindInProjectAsync(
@@ -137,7 +129,7 @@ public sealed class BoardDependencyService(
 
     if (boardSnapshot is null)
     {
-      return new BoardResult<BoardResponse>(BoardResultStatus.NotFound);
+      return Error.NotFound();
     }
 
     var dependencyEvaluation = BoardDependencyGraph.EvaluateDependency(
@@ -146,24 +138,14 @@ public sealed class BoardDependencyService(
       cardId,
       request.DependsOnCardId);
 
-    if (dependencyEvaluation.Status is GraphEdgeStatus.MissingSource
-      or GraphEdgeStatus.MissingTarget)
+    switch (dependencyEvaluation.Status)
     {
-      return new BoardResult<BoardResponse>(BoardResultStatus.NotFound);
-    }
-
-    if (dependencyEvaluation.Status == GraphEdgeStatus.Duplicate)
-    {
-      return new BoardResult<BoardResponse>(
-        BoardResultStatus.Success,
-        BoardResponseMapper.ToResponse(boardSnapshot));
-    }
-
-    if (dependencyEvaluation.Status == GraphEdgeStatus.Cycle)
-    {
-      return new BoardResult<BoardResponse>(
-        BoardResultStatus.Conflict,
-        Message: "Adding this dependency would create a cycle.");
+      case GraphEdgeStatus.MissingSource or GraphEdgeStatus.MissingTarget:
+        return Error.NotFound();
+      case GraphEdgeStatus.Duplicate:
+        return Result.Success(BoardResponseMapper.ToResponse(boardSnapshot));
+      case GraphEdgeStatus.Cycle:
+        return Error.Conflict("Adding this dependency would create a cycle.");
     }
 
     var board = await boards.AddCardDependencyAsync(
@@ -172,17 +154,15 @@ public sealed class BoardDependencyService(
       boardId,
       cardId,
       request.DependsOnCardId,
-      DateTimeOffset.UtcNow,
+      clock.GetUtcNow(),
       cancellationToken);
 
     return board is null
-      ? new BoardResult<BoardResponse>(BoardResultStatus.NotFound)
-      : new BoardResult<BoardResponse>(
-        BoardResultStatus.Success,
-        BoardResponseMapper.ToResponse(board));
+      ? Error.NotFound()
+      : Result.Success(BoardResponseMapper.ToResponse(board));
   }
 
-  public async Task<BoardResult<object>> DeleteCardDependencyAsync(
+  public async Task<Result> DeleteCardDependencyAsync(
     Guid workspaceId,
     Guid projectId,
     Guid boardId,
@@ -191,15 +171,15 @@ public sealed class BoardDependencyService(
     Guid userId,
     CancellationToken cancellationToken)
   {
-    var access = await projectAccess.FindWritableAccessAsync(
+    var access = await projectAccess.AuthorizeWriteAsync(
       workspaceId,
       projectId,
       userId,
       cancellationToken);
 
-    if (access.Status != ProjectAccessStatus.Granted)
+    if (!access.IsSuccess)
     {
-      return BoardResults.AccessFailure<object>(access.Status);
+      return access.Error;
     }
 
     var deleted = await boards.DeleteCardDependencyAsync(
@@ -208,11 +188,9 @@ public sealed class BoardDependencyService(
       boardId,
       cardId,
       dependsOnCardId,
-      DateTimeOffset.UtcNow,
+      clock.GetUtcNow(),
       cancellationToken);
 
-    return deleted
-      ? new BoardResult<object>(BoardResultStatus.Success)
-      : new BoardResult<object>(BoardResultStatus.NotFound);
+    return deleted ? Result.Success() : Error.NotFound();
   }
 }

@@ -1,32 +1,19 @@
+using Coordina.Api.Core.Modules;
 using Coordina.Api.Modules.Workspaces.Application;
 using Coordina.Api.Modules.Workspaces.Infrastructure;
 
 namespace Coordina.Api.Modules.Workspaces;
 
-public static class WorkspacesModule
+public sealed class WorkspacesModule : IModule
 {
-  public static IServiceCollection AddWorkspacesModule(
-    this IServiceCollection services)
+  public void AddServices(
+    IServiceCollection services,
+    IConfiguration configuration)
   {
     services.AddScoped<IWorkspaceStore, PostgresWorkspaceStore>();
     services.AddScoped<IWorkspaceService, WorkspaceService>();
-
-    return services;
   }
 
-  public static IServiceCollection AddInMemoryWorkspaceStoreForTests(
-    this IServiceCollection services)
-  {
-    var workspaceStoreDescriptor = services.SingleOrDefault(
-      descriptor => descriptor.ServiceType == typeof(IWorkspaceStore));
-
-    if (workspaceStoreDescriptor is not null)
-    {
-      services.Remove(workspaceStoreDescriptor);
-    }
-
-    services.AddSingleton<IWorkspaceStore, InMemoryWorkspaceStore>();
-
-    return services;
-  }
+  public void MapEndpoints(IEndpointRouteBuilder endpoints) =>
+    endpoints.MapWorkspacesEndpoints();
 }

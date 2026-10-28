@@ -1,3 +1,4 @@
+using Coordina.Api.Core.Results;
 using Coordina.Api.Modules.Boards.Contracts;
 using Coordina.Api.Modules.Projects.Application;
 
@@ -5,23 +6,24 @@ namespace Coordina.Api.Modules.Boards.Application;
 
 public sealed class BoardCatalogService(
   IBoardStore boards,
-  IProjectAccessGuard projectAccess) : IBoardCatalogService
+  IProjectAccessGuard projectAccess,
+  TimeProvider clock) : IBoardCatalogService
 {
-  public async Task<BoardResult<BoardResponse>> GetDefaultAsync(
+  public async Task<Result<BoardResponse>> GetDefaultAsync(
     Guid workspaceId,
     Guid projectId,
     Guid userId,
     CancellationToken cancellationToken)
   {
-    var access = await projectAccess.FindAccessAsync(
+    var access = await projectAccess.AuthorizeReadAsync(
       workspaceId,
       projectId,
       userId,
       cancellationToken);
 
-    if (access is null)
+    if (!access.IsSuccess)
     {
-      return new BoardResult<BoardResponse>(BoardResultStatus.NotFound);
+      return access.Error;
     }
 
     var board = await boards.FindDefaultForProjectAsync(
@@ -30,59 +32,49 @@ public sealed class BoardCatalogService(
       cancellationToken);
 
     return board is null
-      ? new BoardResult<BoardResponse>(BoardResultStatus.NotFound)
-      : new BoardResult<BoardResponse>(
-        BoardResultStatus.Success,
-        BoardResponseMapper.ToResponse(board));
+      ? Error.NotFound()
+      : Result.Success(BoardResponseMapper.ToResponse(board));
   }
 
-  public async Task<BoardResult<BoardResponse>> CreateAsync(
+  public async Task<Result<BoardResponse>> CreateAsync(
     Guid workspaceId,
     Guid projectId,
     CreateBoardRequest request,
     Guid userId,
     CancellationToken cancellationToken)
   {
-    var access = await projectAccess.FindWritableAccessAsync(
+    var access = await projectAccess.AuthorizeWriteAsync(
       workspaceId,
       projectId,
       userId,
       cancellationToken);
 
-    if (access.Status != ProjectAccessStatus.Granted)
+    if (!access.IsSuccess)
     {
-      return BoardResults.AccessFailure<BoardResponse>(access.Status);
+      return access.Error;
     }
 
-    var template = BoardRules.ParseTemplate(request.Template, out var templateError);
-    var listSeeds = template is null
-      ? []
-      : BoardRules.BuildListSeeds(template.Value, request.CustomListTitles);
     var errors = BoardRules.ValidateBoard(
       request.Name,
-      template,
-      templateError,
-      listSeeds);
+      request.Template,
+      request.CustomListTitles,
+      out var template,
+      out var listSeeds);
 
-    if (errors.Count > 0)
+    if (errors.HasErrors)
     {
-      return new BoardResult<BoardResponse>(
-        BoardResultStatus.ValidationError,
-        Errors: errors);
+      return errors.ToError();
     }
 
-    var now = DateTimeOffset.UtcNow;
     var board = await boards.CreateAsync(
       workspaceId,
       projectId,
       request.Name!.Trim(),
       template!.Value,
       listSeeds,
-      now,
+      clock.GetUtcNow(),
       cancellationToken);
 
-    return new BoardResult<BoardResponse>(
-      BoardResultStatus.Success,
-      BoardResponseMapper.ToResponse(board));
+    return Result.Success(BoardResponseMapper.ToResponse(board));
   }
 }

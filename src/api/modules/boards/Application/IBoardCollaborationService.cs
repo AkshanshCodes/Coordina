@@ -1,10 +1,11 @@
+using Coordina.Api.Core.Results;
 using Coordina.Api.Modules.Boards.Contracts;
 
 namespace Coordina.Api.Modules.Boards.Application;
 
 public interface IBoardCollaborationService
 {
-  Task<BoardResult<BoardResponse>> AddCardCommentAsync(
+  Task<Result<BoardResponse>> AddCardCommentAsync(
     Guid workspaceId,
     Guid projectId,
     Guid boardId,
@@ -13,7 +14,7 @@ public interface IBoardCollaborationService
     Guid userId,
     CancellationToken cancellationToken);
 
-  Task<BoardResult<BoardResponse>> CreateCardSubtaskAsync(
+  Task<Result<BoardResponse>> CreateCardSubtaskAsync(
     Guid workspaceId,
     Guid projectId,
     Guid boardId,
@@ -22,7 +23,7 @@ public interface IBoardCollaborationService
     Guid userId,
     CancellationToken cancellationToken);
 
-  Task<BoardResult<BoardResponse>> UpdateCardSubtaskAsync(
+  Task<Result<BoardResponse>> UpdateCardSubtaskAsync(
     Guid workspaceId,
     Guid projectId,
     Guid boardId,
@@ -32,7 +33,7 @@ public interface IBoardCollaborationService
     Guid userId,
     CancellationToken cancellationToken);
 
-  Task<BoardResult<object>> DeleteCardSubtaskAsync(
+  Task<Result> DeleteCardSubtaskAsync(
     Guid workspaceId,
     Guid projectId,
     Guid boardId,

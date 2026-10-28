@@ -5,14 +5,12 @@ using Coordina.Api.Tests.Support;
 namespace Coordina.Api.Tests;
 
 public sealed class ApiEndpointsTests(ApiTestApplicationFactory factory)
-    : IClassFixture<ApiTestApplicationFactory>
+  : ApiTest(factory)
 {
-  private readonly HttpClient _client = factory.CreateClient();
-
   [Fact]
   public async Task Root_ReturnsWelcomeMessage()
   {
-    var response = await _client.GetAsync("/");
+    var response = await Api.Http.GetAsync("/");
 
     Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
@@ -24,7 +22,7 @@ public sealed class ApiEndpointsTests(ApiTestApplicationFactory factory)
   [Fact]
   public async Task Health_ReturnsServiceStatus()
   {
-    var response = await _client.GetAsync("/health");
+    var response = await Api.Http.GetAsync("/health");
 
     Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 

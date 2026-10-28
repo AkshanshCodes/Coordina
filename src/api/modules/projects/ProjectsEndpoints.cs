@@ -1,4 +1,5 @@
-using System.Security.Claims;
+using Coordina.Api.Core.Http;
+using Coordina.Api.Core.Security;
 using Coordina.Api.Modules.Projects.Application;
 using Coordina.Api.Modules.Projects.Contracts;
 
@@ -9,10 +10,9 @@ public static class ProjectsEndpoints
   public static IEndpointRouteBuilder MapProjectsEndpoints(
     this IEndpointRouteBuilder app)
   {
-    var group = app
-      .MapGroup("/workspaces/{workspaceId:guid}/projects")
-      .RequireAuthorization()
-      .WithTags("Projects");
+    var group = app.MapApiGroup(
+      "/workspaces/{workspaceId:guid}/projects",
+      "Projects");
 
     group.MapPost("/", Create)
       .WithSummary("Create project")
@@ -44,186 +44,101 @@ public static class ProjectsEndpoints
   private static async Task<IResult> Create(
     Guid workspaceId,
     CreateProjectRequest request,
-    ClaimsPrincipal user,
+    CurrentUser user,
     IProjectService projectService,
     CancellationToken cancellationToken)
   {
-    if (!TryGetUserId(user, out var userId))
-    {
-      return Results.Unauthorized();
-    }
-
     var result = await projectService.CreateAsync(
       workspaceId,
       request,
-      userId,
+      user.Id,
       cancellationToken);
 
-    return result.Status switch
-    {
-      ProjectResultStatus.Success => Results.Created(
-        $"/workspaces/{workspaceId}/projects/{result.Value!.Id}",
-        result.Value),
-      ProjectResultStatus.ValidationError => Results.ValidationProblem(
-        result.Errors?.ToDictionary() ?? new Dictionary<string, string[]>()),
-      ProjectResultStatus.NotFound => Results.NotFound(),
-      _ => Results.BadRequest()
-    };
+    return result.ToCreatedResult(
+      project => $"/workspaces/{workspaceId}/projects/{project.Id}");
   }
 
   private static async Task<IResult> List(
     Guid workspaceId,
     bool? includeArchived,
     bool? includeCompleted,
-    ClaimsPrincipal user,
+    CurrentUser user,
     IProjectService projectService,
     CancellationToken cancellationToken)
   {
-    if (!TryGetUserId(user, out var userId))
-    {
-      return Results.Unauthorized();
-    }
-
     var result = await projectService.ListAsync(
       workspaceId,
       includeArchived == true,
       includeCompleted == true,
-      userId,
+      user.Id,
       cancellationToken);
 
-    return result.Status switch
-    {
-      ProjectResultStatus.Success => Results.Ok(result.Value),
-      ProjectResultStatus.NotFound => Results.NotFound(),
-      _ => Results.BadRequest()
-    };
+    return result.ToOkResult();
   }
 
   private static async Task<IResult> Get(
     Guid workspaceId,
     Guid projectId,
-    ClaimsPrincipal user,
+    CurrentUser user,
     IProjectService projectService,
     CancellationToken cancellationToken)
   {
-    if (!TryGetUserId(user, out var userId))
-    {
-      return Results.Unauthorized();
-    }
-
     var result = await projectService.GetAsync(
       workspaceId,
       projectId,
-      userId,
+      user.Id,
       cancellationToken);
 
-    return result.Status switch
-    {
-      ProjectResultStatus.Success => Results.Ok(result.Value),
-      ProjectResultStatus.NotFound => Results.NotFound(),
-      _ => Results.BadRequest()
-    };
+    return result.ToOkResult();
   }
 
   private static async Task<IResult> Delete(
     Guid workspaceId,
     Guid projectId,
-    ClaimsPrincipal user,
+    CurrentUser user,
     IProjectService projectService,
     CancellationToken cancellationToken)
   {
-    if (!TryGetUserId(user, out var userId))
-    {
-      return Results.Unauthorized();
-    }
-
     var result = await projectService.DeleteAsync(
       workspaceId,
       projectId,
-      userId,
+      user.Id,
       cancellationToken);
 
-    return result.Status switch
-    {
-      ProjectResultStatus.Success => Results.NoContent(),
-      ProjectResultStatus.Forbidden => Results.Forbid(),
-      ProjectResultStatus.NotFound => Results.NotFound(),
-      ProjectResultStatus.Conflict => Results.Conflict(new
-      {
-        message = result.Message
-      }),
-      _ => Results.BadRequest()
-    };
+    return result.ToNoContentResult();
   }
 
   private static async Task<IResult> Update(
     Guid workspaceId,
     Guid projectId,
     UpdateProjectRequest request,
-    ClaimsPrincipal user,
+    CurrentUser user,
     IProjectService projectService,
     CancellationToken cancellationToken)
   {
-    if (!TryGetUserId(user, out var userId))
-    {
-      return Results.Unauthorized();
-    }
-
     var result = await projectService.UpdateAsync(
       workspaceId,
       projectId,
       request,
-      userId,
+      user.Id,
       cancellationToken);
 
-    return result.Status switch
-    {
-      ProjectResultStatus.Success => Results.Ok(result.Value),
-      ProjectResultStatus.ValidationError => Results.ValidationProblem(
-        result.Errors?.ToDictionary() ?? new Dictionary<string, string[]>()),
-      ProjectResultStatus.Forbidden => Results.Forbid(),
-      ProjectResultStatus.NotFound => Results.NotFound(),
-      ProjectResultStatus.Conflict => Results.Conflict(new
-      {
-        message = result.Message
-      }),
-      _ => Results.BadRequest()
-    };
+    return result.ToOkResult();
   }
 
   private static async Task<IResult> PermanentlyDelete(
     Guid workspaceId,
     Guid projectId,
-    ClaimsPrincipal user,
+    CurrentUser user,
     IProjectService projectService,
     CancellationToken cancellationToken)
   {
-    if (!TryGetUserId(user, out var userId))
-    {
-      return Results.Unauthorized();
-    }
-
     var result = await projectService.PermanentlyDeleteAsync(
       workspaceId,
       projectId,
-      userId,
+      user.Id,
       cancellationToken);
 
-    return result.Status switch
-    {
-      ProjectResultStatus.Success => Results.NoContent(),
-      ProjectResultStatus.Forbidden => Results.Forbid(),
-      ProjectResultStatus.NotFound => Results.NotFound(),
-      _ => Results.BadRequest()
-    };
-  }
-
-  private static bool TryGetUserId(
-    ClaimsPrincipal user,
-    out Guid userId)
-  {
-    return Guid.TryParse(
-      user.FindFirstValue(ClaimTypes.NameIdentifier),
-      out userId);
+    return result.ToNoContentResult();
   }
 }

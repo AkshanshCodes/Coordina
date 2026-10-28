@@ -54,6 +54,16 @@ own database cloned from that template. Each database is dropped after its test.
 If Docker is unavailable, tests fail with a message starting
 `PostgreSQL integration tests require Docker:`.
 
+Fast-suite endpoint tests derive from `ApiTest` and drive the API through
+`ApiTestClient` (`Api`). It registers users and builds common setup in one call
+(`CreateWorkspaceAsync`, `AddMemberAsync`, `CreateProjectAsync`,
+`CreateBoardAsync`, ...), and a failed setup request reports its method, URL,
+status, and body. Response records in `tests/api/Support/ApiContracts.cs`
+mirror the JSON the web client receives.
+
+The fast suite also runs the architecture and convention rules listed in
+`CONTRIBUTING.md`.
+
 Put a test in the PostgreSQL suite when the in-memory stores cannot catch the
 bug: migrations and data backfills, transactions and race conditions, unique or
 check constraints, and tenant scoping in SQL queries. Test classes derive from

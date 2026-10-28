@@ -1,38 +1,47 @@
 using System.Security.Cryptography;
 using System.Text;
+using Coordina.Api.Core.Results;
 using Coordina.Api.Modules.Workspaces.Contracts;
 using Coordina.Api.Modules.Workspaces.Domain;
+using Coordina.Api.Shared.Enums;
+using Coordina.Api.Shared.Validation;
 
 namespace Coordina.Api.Modules.Workspaces.Application;
 
-public sealed class WorkspaceService(IWorkspaceStore workspaces)
-  : IWorkspaceService
+public sealed class WorkspaceService(
+  IWorkspaceStore workspaces,
+  TimeProvider clock) : IWorkspaceService
 {
+  private const string InvalidInviteMessage =
+    "Invitation code is invalid or has already been used.";
+  private const string AlreadyMemberMessage =
+    "You already belong to this workspace.";
   private static readonly TimeSpan InviteLifetime = TimeSpan.FromDays(7);
 
-  public async Task<WorkspaceResult<WorkspaceResponse>> CreateAsync(
+  public async Task<Result<WorkspaceResponse>> CreateAsync(
     CreateWorkspaceRequest request,
     Guid userId,
     CancellationToken cancellationToken)
   {
-    var errors = ValidateName(request.Name);
+    var errors = new ValidationErrors().Required(
+      "name",
+      request.Name,
+      "Workspace name",
+      minLength: 2,
+      maxLength: 80);
 
-    if (errors.Count > 0)
+    if (errors.HasErrors)
     {
-      return new WorkspaceResult<WorkspaceResponse>(
-        WorkspaceResultStatus.ValidationError,
-        Errors: errors);
+      return errors.ToError();
     }
 
     var workspace = await workspaces.CreateAsync(
       request.Name.Trim(),
       userId,
-      DateTimeOffset.UtcNow,
+      clock.GetUtcNow(),
       cancellationToken);
 
-    return new WorkspaceResult<WorkspaceResponse>(
-      WorkspaceResultStatus.Success,
-      ToResponse(workspace));
+    return Result.Success(ToResponse(workspace));
   }
 
   public async Task<IReadOnlyCollection<WorkspaceResponse>> ListAsync(
@@ -46,7 +55,7 @@ public sealed class WorkspaceService(IWorkspaceStore workspaces)
     return userWorkspaces.Select(ToResponse).ToArray();
   }
 
-  public async Task<WorkspaceResult<WorkspaceResponse>> GetAsync(
+  public async Task<Result<WorkspaceResponse>> GetAsync(
     Guid workspaceId,
     Guid userId,
     CancellationToken cancellationToken)
@@ -57,13 +66,11 @@ public sealed class WorkspaceService(IWorkspaceStore workspaces)
       cancellationToken);
 
     return workspace is null
-      ? new WorkspaceResult<WorkspaceResponse>(WorkspaceResultStatus.NotFound)
-      : new WorkspaceResult<WorkspaceResponse>(
-        WorkspaceResultStatus.Success,
-        ToResponse(workspace));
+      ? Error.NotFound()
+      : Result.Success(ToResponse(workspace));
   }
 
-  public async Task<WorkspaceResult<WorkspaceResponse>> JoinAsync(
+  public async Task<Result<WorkspaceResponse>> JoinAsync(
     JoinWorkspaceRequest request,
     Guid userId,
     CancellationToken cancellationToken)
@@ -72,24 +79,19 @@ public sealed class WorkspaceService(IWorkspaceStore workspaces)
 
     if (inviteCode.Length != 12)
     {
-      return new WorkspaceResult<WorkspaceResponse>(
-        WorkspaceResultStatus.ValidationError,
-        Errors: new Dictionary<string, string[]>
-        {
-          [nameof(request.InviteCode)] = ["Enter a valid invitation code."]
-        });
+      return Error.Validation(
+        nameof(request.InviteCode),
+        "Enter a valid invitation code.");
     }
 
     var invite = await workspaces.FindUsableInviteAsync(
       HashInviteCode(inviteCode),
-      DateTimeOffset.UtcNow,
+      clock.GetUtcNow(),
       cancellationToken);
 
     if (invite is null)
     {
-      return new WorkspaceResult<WorkspaceResponse>(
-        WorkspaceResultStatus.NotFound,
-        Message: "Invitation code is invalid or has already been used.");
+      return Error.NotFound(InvalidInviteMessage);
     }
 
     var existingMembership = await workspaces.FindForUserAsync(
@@ -99,56 +101,39 @@ public sealed class WorkspaceService(IWorkspaceStore workspaces)
 
     if (existingMembership is not null)
     {
-      return new WorkspaceResult<WorkspaceResponse>(
-        WorkspaceResultStatus.Conflict,
-        Message: "You already belong to this workspace.");
+      return Error.Conflict(AlreadyMemberMessage);
     }
 
     var outcome = await workspaces.ConsumeInviteAsync(
       invite.Id,
       userId,
-      DateTimeOffset.UtcNow,
+      clock.GetUtcNow(),
       cancellationToken);
 
     return outcome.Status switch
     {
-      ConsumeInviteStatus.Consumed => new WorkspaceResult<WorkspaceResponse>(
-        WorkspaceResultStatus.Success,
-        ToResponse(outcome.Workspace!)),
-      ConsumeInviteStatus.AlreadyMember => new WorkspaceResult<WorkspaceResponse>(
-        WorkspaceResultStatus.Conflict,
-        Message: "You already belong to this workspace."),
-      _ => new WorkspaceResult<WorkspaceResponse>(
-        WorkspaceResultStatus.NotFound,
-        Message: "Invitation code is invalid or has already been used.")
+      ConsumeInviteStatus.Consumed => Result.Success(ToResponse(outcome.Workspace!)),
+      ConsumeInviteStatus.AlreadyMember => Error.Conflict(AlreadyMemberMessage),
+      _ => Error.NotFound(InvalidInviteMessage)
     };
   }
 
-  public async Task<WorkspaceResult<CreateWorkspaceInviteResponse>> CreateInviteAsync(
+  public async Task<Result<CreateWorkspaceInviteResponse>> CreateInviteAsync(
     Guid workspaceId,
     Guid userId,
     CancellationToken cancellationToken)
   {
-    var role = await workspaces.FindUserRoleAsync(
+    if (await EnsureOwnerAsync(
       workspaceId,
       userId,
-      cancellationToken);
-
-    if (role is null)
+      "Only workspace owners can create invitation codes.",
+      cancellationToken) is { } error)
     {
-      return new WorkspaceResult<CreateWorkspaceInviteResponse>(
-        WorkspaceResultStatus.NotFound);
-    }
-
-    if (role != WorkspaceRole.Owner)
-    {
-      return new WorkspaceResult<CreateWorkspaceInviteResponse>(
-        WorkspaceResultStatus.Forbidden,
-        Message: "Only workspace owners can create invitation codes.");
+      return error;
     }
 
     var code = GenerateInviteCode();
-    var now = DateTimeOffset.UtcNow;
+    var now = clock.GetUtcNow();
     var expiresAt = now.Add(InviteLifetime);
 
     await workspaces.CreateInviteAsync(
@@ -159,12 +144,10 @@ public sealed class WorkspaceService(IWorkspaceStore workspaces)
       expiresAt,
       cancellationToken);
 
-    return new WorkspaceResult<CreateWorkspaceInviteResponse>(
-      WorkspaceResultStatus.Success,
-      new CreateWorkspaceInviteResponse(code, expiresAt));
+    return Result.Success(new CreateWorkspaceInviteResponse(code, expiresAt));
   }
 
-  public async Task<WorkspaceResult<IReadOnlyCollection<WorkspaceMemberResponse>>> ListMembersAsync(
+  public async Task<Result<IReadOnlyCollection<WorkspaceMemberResponse>>> ListMembersAsync(
     Guid workspaceId,
     Guid userId,
     CancellationToken cancellationToken)
@@ -176,50 +159,37 @@ public sealed class WorkspaceService(IWorkspaceStore workspaces)
 
     if (role is null)
     {
-      return new WorkspaceResult<IReadOnlyCollection<WorkspaceMemberResponse>>(
-        WorkspaceResultStatus.NotFound);
+      return Error.NotFound();
     }
 
     var members = await workspaces.ListMembersAsync(
       workspaceId,
       cancellationToken);
 
-    return new WorkspaceResult<IReadOnlyCollection<WorkspaceMemberResponse>>(
-      WorkspaceResultStatus.Success,
+    return Result.Success<IReadOnlyCollection<WorkspaceMemberResponse>>(
       members.Select(ToResponse).ToArray());
   }
 
-  public async Task<WorkspaceResult<object>> RemoveMemberAsync(
+  public async Task<Result> RemoveMemberAsync(
     Guid workspaceId,
     Guid memberUserId,
     Guid currentUserId,
     CancellationToken cancellationToken)
   {
-    var currentUserRole = await workspaces.FindUserRoleAsync(
+    if (await EnsureOwnerAsync(
       workspaceId,
       currentUserId,
-      cancellationToken);
-
-    if (currentUserRole is null)
+      "Only workspace owners can remove members.",
+      cancellationToken) is { } error)
     {
-      return new WorkspaceResult<object>(WorkspaceResultStatus.NotFound);
-    }
-
-    if (currentUserRole != WorkspaceRole.Owner)
-    {
-      return new WorkspaceResult<object>(
-        WorkspaceResultStatus.Forbidden,
-        Message: "Only workspace owners can remove members.");
+      return error;
     }
 
     if (memberUserId == currentUserId)
     {
-      return new WorkspaceResult<object>(
-        WorkspaceResultStatus.ValidationError,
-        Errors: new Dictionary<string, string[]>
-        {
-          [nameof(memberUserId)] = ["Owners cannot remove themselves."]
-        });
+      return Error.Validation(
+        nameof(memberUserId),
+        "Owners cannot remove themselves.");
     }
 
     var memberRole = await workspaces.FindUserRoleAsync(
@@ -229,14 +199,12 @@ public sealed class WorkspaceService(IWorkspaceStore workspaces)
 
     if (memberRole is null)
     {
-      return new WorkspaceResult<object>(WorkspaceResultStatus.NotFound);
+      return Error.NotFound();
     }
 
     if (memberRole == WorkspaceRole.Owner)
     {
-      return new WorkspaceResult<object>(
-        WorkspaceResultStatus.Forbidden,
-        Message: "Owner members cannot be removed.");
+      return Error.Forbidden("Owner members cannot be removed.");
     }
 
     var removed = await workspaces.RemoveMemberAsync(
@@ -244,14 +212,36 @@ public sealed class WorkspaceService(IWorkspaceStore workspaces)
       memberUserId,
       cancellationToken);
 
-    return removed
-      ? new WorkspaceResult<object>(WorkspaceResultStatus.Success)
-      : new WorkspaceResult<object>(WorkspaceResultStatus.NotFound);
+    return removed ? Result.Success() : Error.NotFound();
   }
 
-  public async Task<WorkspaceResult<object>> DeleteAsync(
+  public async Task<Result> DeleteAsync(
     Guid workspaceId,
     Guid userId,
+    CancellationToken cancellationToken)
+  {
+    if (await EnsureOwnerAsync(
+      workspaceId,
+      userId,
+      "Only workspace owners can delete a workspace.",
+      cancellationToken) is { } error)
+    {
+      return error;
+    }
+
+    await workspaces.DeleteAsync(workspaceId, cancellationToken);
+
+    return Result.Success();
+  }
+
+  /// <summary>
+  /// Hides the workspace from non-members (404) and rejects members that are
+  /// not owners (403).
+  /// </summary>
+  private async Task<Error?> EnsureOwnerAsync(
+    Guid workspaceId,
+    Guid userId,
+    string forbiddenMessage,
     CancellationToken cancellationToken)
   {
     var role = await workspaces.FindUserRoleAsync(
@@ -259,41 +249,12 @@ public sealed class WorkspaceService(IWorkspaceStore workspaces)
       userId,
       cancellationToken);
 
-    if (role is null)
+    return role switch
     {
-      return new WorkspaceResult<object>(WorkspaceResultStatus.NotFound);
-    }
-
-    if (role != WorkspaceRole.Owner)
-    {
-      return new WorkspaceResult<object>(
-        WorkspaceResultStatus.Forbidden,
-        Message: "Only workspace owners can delete a workspace.");
-    }
-
-    await workspaces.DeleteAsync(workspaceId, cancellationToken);
-
-    return new WorkspaceResult<object>(WorkspaceResultStatus.Success);
-  }
-
-  private static Dictionary<string, string[]> ValidateName(string name)
-  {
-    var errors = new Dictionary<string, string[]>();
-
-    if (string.IsNullOrWhiteSpace(name))
-    {
-      errors[nameof(name)] = ["Workspace name is required."];
-    }
-    else if (name.Trim().Length < 2)
-    {
-      errors[nameof(name)] = ["Workspace name must be at least 2 characters."];
-    }
-    else if (name.Trim().Length > 80)
-    {
-      errors[nameof(name)] = ["Workspace name must be 80 characters or fewer."];
-    }
-
-    return errors;
+      null => Error.NotFound(),
+      WorkspaceRole.Owner => null,
+      _ => Error.Forbidden(forbiddenMessage)
+    };
   }
 
   private static string GenerateInviteCode()
@@ -315,7 +276,7 @@ public sealed class WorkspaceService(IWorkspaceStore workspaces)
     return new WorkspaceResponse(
       workspace.Id.ToString(),
       workspace.Name,
-      workspace.CurrentUserRole.ToString().ToUpperInvariant(),
+      EnumCode.Format(workspace.CurrentUserRole),
       workspace.CreatedAt);
   }
 
@@ -325,7 +286,7 @@ public sealed class WorkspaceService(IWorkspaceStore workspaces)
       member.UserId.ToString(),
       member.Name,
       member.Email,
-      member.Role.ToString().ToUpperInvariant(),
+      EnumCode.Format(member.Role),
       member.JoinedAt);
   }
 }
