@@ -71,6 +71,7 @@ export function ProjectBoard({ project, workspace }: ProjectBoardProps) {
     myCardCount,
     newListTitle,
     notice,
+    planningPreferences,
     quickAddListId,
     quickTitle,
     selectedCard,
@@ -78,6 +79,7 @@ export function ProjectBoard({ project, workspace }: ProjectBoardProps) {
     setIsAddingList,
     setIsPlanningPanelOpen,
     setNewListTitle,
+    setPlanningPreferences,
     setQuickAddListId,
     setQuickTitle,
     setSelectedCardId,
@@ -211,7 +213,10 @@ export function ProjectBoard({ project, workspace }: ProjectBoardProps) {
         {isPlanningPanelVisible ? (
           <BoardPlanningPanel
             graph={boardGraph}
+            labels={boardLabels}
             metrics={metrics}
+            preferences={planningPreferences}
+            onPreferencesChange={setPlanningPreferences}
             onSelectCard={setSelectedCardId}
             wipAlerts={wipAlerts}
           />

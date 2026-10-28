@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import * as boardApi from "@/features/board/api/board-api"
+import {
+  defaultPlanningPreferences,
+  type PlanningPreferences,
+} from "@/features/board/model/planning-preferences"
 import { listWorkspaceMembers } from "@/features/workspaces/workspace-api"
 import { ApiError } from "@/lib/api"
 import type {
@@ -18,6 +22,7 @@ type BoardScope = {
 
 type UseBoardResourceOptions = BoardScope & {
   onError: (error: unknown, fallback: string) => void
+  planning?: PlanningPreferences
 }
 
 export function useBoardResource({
@@ -25,12 +30,19 @@ export function useBoardResource({
   workspaceId,
   projectId,
   onError,
+  planning = defaultPlanningPreferences,
 }: UseBoardResourceOptions) {
+  const { availableMinutes, context } = planning
   const [board, setBoard] = useState<Board | null>(null)
   const [members, setMembers] = useState<WorkspaceMember[]>([])
   const [boardGraph, setBoardGraph] = useState<BoardGraph | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const latestRequest = useRef(0)
+  const onErrorRef = useRef(onError)
+
+  useEffect(() => {
+    onErrorRef.current = onError
+  }, [onError])
 
   const reload = useCallback(async () => {
     const request = ++latestRequest.current
@@ -68,13 +80,13 @@ export function useBoardResource({
         return
       }
 
-      onError(requestError, "Unable to load board.")
+      onErrorRef.current(requestError, "Unable to load board.")
     } finally {
       if (isCurrent()) {
         setIsLoading(false)
       }
     }
-  }, [accessToken, onError, projectId, workspaceId])
+  }, [accessToken, projectId, workspaceId])
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -93,7 +105,10 @@ export function useBoardResource({
     let ignore = false
 
     boardApi
-      .getBoardGraph(accessToken, workspaceId, projectId, board.id)
+      .getBoardGraph(accessToken, workspaceId, projectId, board.id, {
+        availableMinutes,
+        context,
+      })
       .then((graph) => {
         if (!ignore) {
           setBoardGraph(graph)
@@ -108,7 +123,7 @@ export function useBoardResource({
     return () => {
       ignore = true
     }
-  }, [accessToken, board, projectId, workspaceId])
+  }, [accessToken, availableMinutes, board, context, projectId, workspaceId])
 
   return { board, boardGraph, isLoading, members, reload, setBoard }
 }

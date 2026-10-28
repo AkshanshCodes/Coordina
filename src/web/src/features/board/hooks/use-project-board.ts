@@ -14,6 +14,10 @@ import {
   getBoardMetrics,
   getWipAlerts,
 } from "@/features/board/model/board-selectors"
+import {
+  defaultPlanningPreferences,
+  type PlanningPreferences,
+} from "@/features/board/model/planning-preferences"
 import { ApiError } from "@/lib/api"
 import type { Project } from "@/types/project"
 import type {
@@ -39,6 +43,8 @@ export function useProjectBoard(project: Project, workspace: Workspace) {
   const [draggingCardId, setDraggingCardId] = useState<string | null>(null)
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null)
   const [isPlanningPanelOpen, setIsPlanningPanelOpen] = useState(false)
+  const [planningPreferences, setPlanningPreferences] =
+    useState<PlanningPreferences>(defaultPlanningPreferences)
 
   const reportError = useCallback(
     (requestError: unknown, fallback: string) => {
@@ -62,7 +68,11 @@ export function useProjectBoard(project: Project, workspace: Workspace) {
     workspaceId: workspace.id,
     projectId: project.id,
   }
-  const resource = useBoardResource({ ...scope, onError: reportError })
+  const resource = useBoardResource({
+    ...scope,
+    onError: reportError,
+    planning: planningPreferences,
+  })
   const { board } = resource
   const mutations = useBoardMutations({
     ...scope,
@@ -85,6 +95,7 @@ export function useProjectBoard(project: Project, workspace: Workspace) {
     queueMicrotask(() => {
       setError(null)
       setSelectedCardId(null)
+      setPlanningPreferences(defaultPlanningPreferences)
       clearFilters()
     })
   }, [clearFilters, project.id, workspace.id])
@@ -215,6 +226,7 @@ export function useProjectBoard(project: Project, workspace: Workspace) {
     myCardCount,
     newListTitle,
     notice: mutations.notice,
+    planningPreferences,
     quickAddListId,
     quickTitle,
     selectedCard,
@@ -222,6 +234,7 @@ export function useProjectBoard(project: Project, workspace: Workspace) {
     setIsAddingList,
     setIsPlanningPanelOpen,
     setNewListTitle,
+    setPlanningPreferences,
     setQuickAddListId,
     setQuickTitle,
     setSelectedCardId,

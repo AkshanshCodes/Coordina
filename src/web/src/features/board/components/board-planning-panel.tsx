@@ -14,32 +14,45 @@ import type {
 } from "@/features/board/model/board-selectors"
 import {
   type PlanTone,
+  getNoFitExplanation,
   getPlanExplanation,
   getPlanTags,
   getShortPlanReason,
   getToneClass,
+  pickPlanFocus,
 } from "@/features/board/model/planning-insights"
+import {
+  focusTimeOptions,
+  formatMinutes,
+  type PlanningPreferences,
+} from "@/features/board/model/planning-preferences"
 import type { BoardGraph, BoardGraphPlanItem } from "@/types/task"
 
 type BoardPlanningPanelProps = {
   graph: BoardGraph | null
+  labels: string[]
   metrics: BoardMetrics
+  preferences: PlanningPreferences
+  onPreferencesChange: (preferences: PlanningPreferences) => void
   onSelectCard: (cardId: string) => void
   wipAlerts: WipAlert[]
 }
 
 export function BoardPlanningPanel({
   graph,
+  labels,
   metrics,
+  preferences,
+  onPreferencesChange,
   onSelectCard,
   wipAlerts,
 }: BoardPlanningPanelProps) {
   const planItems = graph?.planItems ?? []
-  const actionableItems = planItems
-    .filter((item) => item.isActionable)
-    .slice(0, 3)
-  const primaryItem = actionableItems[0] ?? null
-  const queuedItems = actionableItems.slice(1, 3)
+  const {
+    primary: primaryItem,
+    queued: queuedItems,
+    isNoFitAlternative,
+  } = pickPlanFocus(planItems, preferences.availableMinutes)
   const blockedPlanCount = planItems.filter((item) => !item.isActionable).length
   const criticalPath = graph?.criticalPath ?? []
   const criticalPathStart = criticalPath[0] ?? null
@@ -78,7 +91,7 @@ export function BoardPlanningPanel({
           <div className="min-w-0">
             <p className="text-sm font-semibold">Suggested next step</p>
             <p className="mt-0.5 text-[11px] text-muted-foreground">
-              Picked from dates, blockers, priority, and impact.
+              Picked from your work, time, dates, blockers, and impact.
             </p>
           </div>
           {graph?.isAcyclic === false ? (
@@ -87,6 +100,11 @@ export function BoardPlanningPanel({
             <PlanTag tone="teal">Up to date</PlanTag>
           )}
         </div>
+        <PlanningControls
+          labels={labels}
+          preferences={preferences}
+          onPreferencesChange={onPreferencesChange}
+        />
         {primaryItem ? (
           <div className="grid gap-2">
             <button
@@ -102,10 +120,15 @@ export function BoardPlanningPanel({
                   {primaryItem.card.title}
                 </span>
                 <span className="mt-1 block text-[11px] leading-5 text-muted-foreground">
-                  {getPlanExplanation(primaryItem)}
+                  {isNoFitAlternative
+                    ? getNoFitExplanation(
+                        primaryItem,
+                        preferences.availableMinutes
+                      )
+                    : getPlanExplanation(primaryItem)}
                 </span>
                 <span className="mt-2 flex flex-wrap gap-1.5">
-                  {getPlanTags(primaryItem).map((tag) => (
+                  {getPlanTags(primaryItem, preferences).map((tag) => (
                     <PlanTag key={tag.label} tone={tag.tone}>
                       {tag.label}
                     </PlanTag>
@@ -128,8 +151,12 @@ export function BoardPlanningPanel({
           </div>
         ) : (
           <div className="rounded-md border border-dashed border-zinc-950/10 bg-zinc-50 px-3 py-4 text-muted-foreground dark:border-white/10 dark:bg-zinc-950">
-            No suggested next step yet. Add dates, priorities, or dependencies
-            to help the planner rank work.
+            {preferences.availableMinutes > 0 &&
+            planItems.some((item) => item.isActionable)
+              ? `Nothing ready fits ${formatMinutes(
+                  preferences.availableMinutes
+                )}. Add effort estimates to ready cards or pick a longer focus block.`
+              : "No suggested next step yet. Add dates, priorities, or dependencies to help the planner rank work."}
           </div>
         )}
       </section>
@@ -184,6 +211,65 @@ export function BoardPlanningPanel({
           </p>
         ) : null}
       </section>
+    </div>
+  )
+}
+
+function PlanningControls({
+  labels,
+  preferences,
+  onPreferencesChange,
+}: {
+  labels: string[]
+  preferences: PlanningPreferences
+  onPreferencesChange: (preferences: PlanningPreferences) => void
+}) {
+  const selectClass =
+    "h-7 min-w-0 rounded-md border border-zinc-950/10 bg-white px-1.5 text-[11px] dark:border-white/10 dark:bg-zinc-950"
+
+  return (
+    <div className="mb-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+      <label className="flex items-center gap-1.5">
+        Focus
+        <select
+          aria-label="Available focus time"
+          className={selectClass}
+          value={preferences.availableMinutes}
+          onChange={(event) =>
+            onPreferencesChange({
+              ...preferences,
+              availableMinutes: Number(event.target.value),
+            })
+          }
+        >
+          {focusTimeOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="flex items-center gap-1.5">
+        Context
+        <select
+          aria-label="Planning context"
+          className={selectClass}
+          value={preferences.context ?? ""}
+          onChange={(event) =>
+            onPreferencesChange({
+              ...preferences,
+              context: event.target.value || null,
+            })
+          }
+        >
+          <option value="">All labels</option>
+          {labels.map((label) => (
+            <option key={label} value={label}>
+              #{label}
+            </option>
+          ))}
+        </select>
+      </label>
     </div>
   )
 }

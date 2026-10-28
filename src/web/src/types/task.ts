@@ -46,6 +46,7 @@ export type BoardCard = {
   description: string | null
   priority: BoardCardPriority | null
   dueDate: string | null
+  estimatedMinutes: number | null
   labels: string[]
   isCompleted: boolean
   completedAt: string | null
@@ -100,6 +101,8 @@ export type BoardCardDependency = {
 export type BoardGraph = {
   boardId: string
   isAcyclic: boolean
+  availableMinutes: number
+  context: string | null
   readyCards: BoardGraphCard[]
   unblockedCards: BoardGraphCard[]
   dependencyOrder: BoardGraphCard[]
@@ -140,6 +143,12 @@ export type BoardGraphPlanItem = {
   score: number
   isActionable: boolean
   blockerCount: number
+  estimatedMinutes: number | null
+  fitsAvailableTime: boolean
+  isAssignedToMe: boolean
+  isContextMatch: boolean
+  isInProgress: boolean
+  isShortestAlternative: boolean
   reasons: string[]
 }
 
@@ -148,6 +157,7 @@ export type BoardCardInput = {
   description?: string
   priority?: BoardCardPriority | ""
   dueDate?: string | null
+  estimatedMinutes?: number | null
   labels?: string[]
   assigneeIds?: string[]
   isCompleted?: boolean

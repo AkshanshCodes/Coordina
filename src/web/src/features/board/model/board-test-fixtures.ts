@@ -1,4 +1,10 @@
-import type { Board, BoardCard, BoardList, BoardTaskStatus } from "@/types/task"
+import type {
+  Board,
+  BoardCard,
+  BoardGraphPlanItem,
+  BoardList,
+  BoardTaskStatus,
+} from "@/types/task"
 
 const timestamp = "2026-10-28T10:00:00Z"
 
@@ -13,6 +19,7 @@ export function makeCard(overrides: Partial<BoardCard> = {}): BoardCard {
     description: null,
     priority: null,
     dueDate: null,
+    estimatedMinutes: null,
     labels: [],
     isCompleted: false,
     completedAt: null,
@@ -61,4 +68,36 @@ export function manyCards(prefix: string, count: number) {
   return Array.from({ length: count }, (_, index) =>
     makeCard({ id: `${prefix}-${index}` })
   )
+}
+
+export function makePlanItem(
+  overrides: Partial<BoardGraphPlanItem> & { id?: string } = {}
+): BoardGraphPlanItem {
+  const { id = "plan", ...rest } = overrides
+
+  return {
+    card: {
+      id,
+      listId: "list",
+      title: id,
+      isCompleted: false,
+      dependencyCount: 0,
+      dependentCount: 0,
+      dependencyDepth: 0,
+      dependentDepth: 0,
+      transitiveDependentCount: 0,
+      isCriticalPath: false,
+    },
+    score: 10,
+    isActionable: true,
+    blockerCount: 0,
+    estimatedMinutes: null,
+    fitsAvailableTime: true,
+    isAssignedToMe: false,
+    isContextMatch: false,
+    isInProgress: false,
+    isShortestAlternative: false,
+    reasons: ["Ready now"],
+    ...rest,
+  }
 }

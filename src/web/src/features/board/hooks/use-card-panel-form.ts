@@ -39,6 +39,7 @@ export function useCardPanelForm({
   const [description, setDescription] = useState("")
   const [priority, setPriority] = useState<BoardCardPriority | "">("")
   const [dueDate, setDueDate] = useState("")
+  const [estimatedMinutes, setEstimatedMinutes] = useState<number | null>(null)
   const [labels, setLabels] = useState<string[]>([])
   const [labelInput, setLabelInput] = useState("")
   const [assigneeIds, setAssigneeIds] = useState<string[]>([])
@@ -61,6 +62,7 @@ export function useCardPanelForm({
       description,
       priority,
       dueDate,
+      estimatedMinutes,
       labels,
       labelInput,
       assigneeIds,
@@ -70,6 +72,7 @@ export function useCardPanelForm({
       assigneeIds,
       description,
       dueDate,
+      estimatedMinutes,
       isCompleted,
       labelInput,
       labels,
@@ -96,6 +99,7 @@ export function useCardPanelForm({
       setDescription(next.description)
       setPriority(next.priority)
       setDueDate(next.dueDate)
+      setEstimatedMinutes(next.estimatedMinutes)
       setLabels(next.labels)
       setLabelInput(next.labelInput)
       setAssigneeIds(next.assigneeIds)
@@ -232,6 +236,7 @@ export function useCardPanelForm({
     description,
     dueDate,
     error,
+    estimatedMinutes,
     hasChanges,
     isCalendarOpen: calendar.isOpen,
     isCompleted,
@@ -248,6 +253,7 @@ export function useCardPanelForm({
     setDependencyId,
     setDescription,
     setDueDate,
+    setEstimatedMinutes,
     setIsCalendarOpen,
     setIsLabelMenuOpen,
     setLabelInput,

@@ -61,4 +61,33 @@ describe("useBoardResource", () => {
     expect(result.current.board?.id).toBe("board-b")
     expect(onError).not.toHaveBeenCalled()
   })
+
+  it("reloads only the graph when planning preferences change", async () => {
+    const board = makeBoard([])
+    vi.mocked(boardApi.getDefaultBoard).mockResolvedValue(board)
+    vi.mocked(boardApi.getBoardGraph).mockReturnValue(new Promise(() => {}))
+    vi.mocked(workspaceApi.listWorkspaceMembers).mockResolvedValue([])
+
+    const { rerender } = renderHook(
+      ({ availableMinutes }) =>
+        useBoardResource({
+          accessToken: "token",
+          workspaceId: "workspace",
+          projectId: "project",
+          onError: vi.fn(),
+          planning: { availableMinutes, context: null },
+        }),
+      { initialProps: { availableMinutes: 0 } }
+    )
+    await waitFor(() => expect(boardApi.getBoardGraph).toHaveBeenCalledTimes(1))
+
+    rerender({ availableMinutes: 60 })
+    await waitFor(() => expect(boardApi.getBoardGraph).toHaveBeenCalledTimes(2))
+
+    expect(boardApi.getDefaultBoard).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(boardApi.getBoardGraph).mock.calls[1][4]).toEqual({
+      availableMinutes: 60,
+      context: null,
+    })
+  })
 })

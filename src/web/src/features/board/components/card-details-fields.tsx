@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { boardCardPriorities } from "@/features/board/model/board-constants"
 import { panelLabelClass, shortDate } from "@/features/board/model/board-format"
 import { todayDateKey } from "@/features/board/model/dates"
+import { effortOptions } from "@/features/board/model/planning-preferences"
 import type { CardPanelForm } from "@/features/board/hooks/use-card-panel-form"
 
 type CardDetailsFieldsProps = {
@@ -31,6 +32,7 @@ export function CardDetailsFields({
     description,
     dueDate,
     error,
+    estimatedMinutes,
     isCalendarOpen,
     isLabelMenuOpen,
     labelInput,
@@ -41,6 +43,7 @@ export function CardDetailsFields({
     priority,
     setDescription,
     setDueDate,
+    setEstimatedMinutes,
     setIsCalendarOpen,
     setIsLabelMenuOpen,
     setLabelInput,
@@ -135,6 +138,26 @@ export function CardDetailsFields({
           </div>
         </Field>
       </div>
+      <Field>
+        <FieldLabel>Effort</FieldLabel>
+        <div className="flex flex-wrap gap-1.5">
+          {effortOptions.map((option) => (
+            <Button
+              key={option.label}
+              type="button"
+              variant={
+                estimatedMinutes === option.value ? "default" : "outline"
+              }
+              size="sm"
+              className="h-8 rounded-md px-2 text-xs"
+              disabled={isReadOnly}
+              onClick={() => setEstimatedMinutes(option.value)}
+            >
+              {option.label}
+            </Button>
+          ))}
+        </div>
+      </Field>
       <Field>
         <FieldLabel htmlFor="card-labels">Labels</FieldLabel>
         <div ref={labelMenuContainerRef} className="relative flex gap-2">

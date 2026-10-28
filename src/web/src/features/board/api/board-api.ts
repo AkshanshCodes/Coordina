@@ -1,3 +1,8 @@
+import {
+  defaultPlanningPreferences,
+  planningQuery,
+  type PlanningPreferences,
+} from "@/features/board/model/planning-preferences"
 import { apiRequest } from "@/lib/api"
 import type {
   Board,
@@ -153,10 +158,13 @@ export async function getBoardGraph(
   accessToken: string,
   workspaceId: string,
   projectId: string,
-  boardId: string
+  boardId: string,
+  preferences: PlanningPreferences = defaultPlanningPreferences
 ) {
   return apiRequest<BoardGraph>(
-    `/workspaces/${workspaceId}/projects/${projectId}/boards/${boardId}/graph`,
+    `/workspaces/${workspaceId}/projects/${projectId}/boards/${boardId}/graph${planningQuery(
+      preferences
+    )}`,
     {
       accessToken,
       errorMessage: "Board graph request failed.",
@@ -308,6 +316,7 @@ function normalizeCardUpdateInput(input: BoardCardInput) {
   return {
     ...normalizeCardInput(input),
     clearDueDate: input.dueDate === null || input.dueDate === "",
+    clearEstimatedMinutes: input.estimatedMinutes === null,
     priority: input.priority ?? "",
   }
 }

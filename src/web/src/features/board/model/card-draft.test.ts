@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import { makeCard } from "@/features/board/model/board-test-fixtures"
 import {
+  toCardInput,
   addDraftLabel,
   canCreateDraftLabel,
   draftFromCard,
@@ -17,6 +18,7 @@ const card = makeCard({
   description: "Shape the payload",
   priority: "HIGH",
   dueDate: "2026-11-02",
+  estimatedMinutes: 60,
   labels: ["backend", "review"],
   assignees: [
     { userId: "b", name: "B", email: null },
@@ -31,6 +33,7 @@ describe("draftFromCard", () => {
       description: "Shape the payload",
       priority: "HIGH",
       dueDate: "2026-11-02",
+      estimatedMinutes: 60,
       labels: ["backend", "review"],
       labelInput: "",
       assigneeIds: ["b", "a"],
@@ -66,6 +69,9 @@ describe("hasDraftChanges", () => {
 
     expect(hasDraftChanges({ ...draft, isCompleted: true }, card)).toBe(true)
     expect(hasDraftChanges({ ...draft, dueDate: "" }, card)).toBe(true)
+    expect(hasDraftChanges({ ...draft, estimatedMinutes: null }, card)).toBe(
+      true
+    )
   })
 })
 
@@ -127,5 +133,17 @@ describe("labels", () => {
     expect(canCreateDraftLabel(["backend"], ["ops"], "ops")).toBe(false)
     expect(canCreateDraftLabel(["backend"], [], "ops")).toBe(true)
     expect(canCreateDraftLabel([], [], " ")).toBe(false)
+  })
+})
+
+describe("toCardInput", () => {
+  it("sends the effort estimate, including an explicit clear", () => {
+    const draft = draftFromCard(card)
+
+    expect(toCardInput(draft, draft.labels, false).estimatedMinutes).toBe(60)
+    expect(
+      toCardInput({ ...draft, estimatedMinutes: null }, draft.labels, false)
+        .estimatedMinutes
+    ).toBeNull()
   })
 })
