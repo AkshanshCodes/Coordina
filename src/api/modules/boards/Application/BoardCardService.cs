@@ -42,13 +42,32 @@ public sealed class BoardCardService(
         Message: mutation.Message);
     }
 
+    var current = await boards.FindInProjectAsync(
+      workspaceId,
+      projectId,
+      boardId,
+      cancellationToken);
+    var list = current?.Lists.SingleOrDefault(candidate => candidate.Id == listId);
+
+    if (list is null)
+    {
+      return new BoardResult<BoardResponse>(BoardResultStatus.NotFound);
+    }
+
+    var createdAt = DateTimeOffset.UtcNow;
+    var completion = BoardWorkflow.CompletionIn(list, null, userId, createdAt);
     var board = await boards.CreateCardAsync(
       workspaceId,
       projectId,
       boardId,
       listId,
-      mutation.Value!,
-      DateTimeOffset.UtcNow,
+      mutation.Value! with
+      {
+        IsCompleted = completion.IsCompleted,
+        CompletedAt = completion.CompletedAt,
+        CompletedByUserId = completion.CompletedByUserId
+      },
+      createdAt,
       cancellationToken);
 
     return board is null
@@ -67,14 +86,16 @@ public sealed class BoardCardService(
     Guid userId,
     CancellationToken cancellationToken)
   {
-    var current = await boards.FindCardAsync(
+    var currentBoard = await boards.FindInProjectAsync(
       workspaceId,
       projectId,
       boardId,
-      cardId,
       cancellationToken);
+    var current = currentBoard?.Lists
+      .SelectMany(list => list.Cards)
+      .SingleOrDefault(card => card.Id == cardId);
 
-    if (current is null)
+    if (currentBoard is null || current is null)
     {
       return new BoardResult<BoardResponse>(BoardResultStatus.NotFound);
     }
@@ -102,12 +123,34 @@ public sealed class BoardCardService(
         Message: mutation.Message);
     }
 
+    var targetListId = current.ListId;
+
+    if (mutation.Value!.IsCompleted != current.IsCompleted)
+    {
+      var targetStatus = mutation.Value.IsCompleted
+        ? BoardTaskStatus.Done
+        : BoardTaskStatus.Todo;
+      var targetList = BoardWorkflow.FindFirstList(currentBoard, targetStatus);
+
+      if (targetList is null)
+      {
+        return new BoardResult<BoardResponse>(
+          BoardResultStatus.Conflict,
+          Message: mutation.Value.IsCompleted
+            ? "Add a list with status DONE to this board before completing cards."
+            : "Add a list with status TODO to this board before reopening cards.");
+      }
+
+      targetListId = targetList.Id;
+    }
+
     var board = await boards.UpdateCardAsync(
       workspaceId,
       projectId,
       boardId,
       cardId,
-      mutation.Value!,
+      targetListId,
+      mutation.Value,
       DateTimeOffset.UtcNow,
       cancellationToken);
 
@@ -148,13 +191,31 @@ public sealed class BoardCardService(
         });
     }
 
+    var current = await boards.FindInProjectAsync(
+      workspaceId,
+      projectId,
+      boardId,
+      cancellationToken);
+    var targetList = current?.Lists
+      .SingleOrDefault(list => list.Id == request.ListId);
+    var card = current?.Lists
+      .SelectMany(list => list.Cards)
+      .SingleOrDefault(candidate => candidate.Id == cardId);
+
+    if (targetList is null || card is null)
+    {
+      return new BoardResult<BoardResponse>(BoardResultStatus.NotFound);
+    }
+
+    var movedAt = DateTimeOffset.UtcNow;
     var board = await boards.MoveCardAsync(
       workspaceId,
       projectId,
       boardId,
       cardId,
       request.ListId,
-      DateTimeOffset.UtcNow,
+      BoardWorkflow.CompletionIn(targetList, card, userId, movedAt),
+      movedAt,
       cancellationToken);
 
     return board is null

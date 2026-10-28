@@ -369,7 +369,8 @@ public sealed class BoardEndpointsTests(ApiTestApplicationFactory factory)
     subtaskResponse.EnsureSuccessStatusCode();
     var withSubtask = await subtaskResponse.Content.ReadFromJsonAsync<BoardResponse>();
     Assert.NotNull(withSubtask);
-    var subtask = withSubtask.Lists.First().Cards
+    var subtask = withSubtask.Lists
+      .SelectMany(item => item.Cards)
       .Single(card => card.Id == firstCard.Id)
       .Subtasks
       .Single();
@@ -392,10 +393,12 @@ public sealed class BoardEndpointsTests(ApiTestApplicationFactory factory)
       owner.AccessToken,
       workspace.Id,
       project.Id);
-    var card = loaded.Lists.First().Cards
+    var card = loaded.Lists
+      .SelectMany(item => item.Cards)
       .Single(item => item.Id == firstCard.Id);
 
     Assert.True(card.IsCompleted);
+    Assert.Equal(loaded.Lists.OrderBy(item => item.Position).Last().Id, card.ListId);
     Assert.Equal(owner.User.Id, card.CompletedBy?.UserId);
     Assert.Equal("Ship it after QA signs off.", Assert.Single(card.Comments).Body);
     Assert.Equal(owner.User.Id, Assert.Single(card.Comments).Author.UserId);

@@ -261,7 +261,10 @@ public sealed class PostgresBoardStore(CoordinaDbContext dbContext)
           Description = cardSeed.Description,
           Priority = cardSeed.Priority,
           Labels = cardSeed.Labels.ToArray(),
-          IsCompleted = false,
+          IsCompleted = listSeed.TaskStatus == BoardTaskStatus.Done,
+          CompletedAt = listSeed.TaskStatus == BoardTaskStatus.Done
+            ? createdAt
+            : null,
           Position = cardPosition++,
           CreatedAt = createdAt,
           UpdatedAt = createdAt
@@ -456,6 +459,7 @@ public sealed class PostgresBoardStore(CoordinaDbContext dbContext)
     Guid projectId,
     Guid boardId,
     Guid cardId,
+    Guid listId,
     BoardCardMutation mutation,
     DateTimeOffset updatedAt,
     CancellationToken cancellationToken)
@@ -471,6 +475,29 @@ public sealed class PostgresBoardStore(CoordinaDbContext dbContext)
     if (card is null)
     {
       return null;
+    }
+
+    if (card.ListId != listId)
+    {
+      var listExists = await ListExistsAsync(
+        workspaceId,
+        projectId,
+        boardId,
+        listId,
+        cancellationToken);
+
+      if (!listExists)
+      {
+        return null;
+      }
+
+      card.Position = await NextCardPositionAsync(
+        workspaceId,
+        projectId,
+        boardId,
+        listId,
+        cancellationToken);
+      card.ListId = listId;
     }
 
     card.Title = mutation.Title;
@@ -519,6 +546,7 @@ public sealed class PostgresBoardStore(CoordinaDbContext dbContext)
     Guid boardId,
     Guid cardId,
     Guid listId,
+    BoardCardCompletion completion,
     DateTimeOffset updatedAt,
     CancellationToken cancellationToken)
   {
@@ -534,13 +562,12 @@ public sealed class PostgresBoardStore(CoordinaDbContext dbContext)
       return null;
     }
 
-    var nextPosition = await dbContext.BoardCards
-      .Where(card => card.WorkspaceId == workspaceId
-        && card.ProjectId == projectId
-        && card.BoardId == boardId
-        && card.ListId == listId)
-      .Select(card => (int?)card.Position)
-      .MaxAsync(cancellationToken) + 1 ?? 0;
+    var nextPosition = await NextCardPositionAsync(
+      workspaceId,
+      projectId,
+      boardId,
+      listId,
+      cancellationToken);
 
     var updated = await dbContext.BoardCards
       .Where(card => card.WorkspaceId == workspaceId
@@ -550,6 +577,9 @@ public sealed class PostgresBoardStore(CoordinaDbContext dbContext)
       .ExecuteUpdateAsync(setters => setters
         .SetProperty(card => card.ListId, listId)
         .SetProperty(card => card.Position, nextPosition)
+        .SetProperty(card => card.IsCompleted, completion.IsCompleted)
+        .SetProperty(card => card.CompletedAt, completion.CompletedAt)
+        .SetProperty(card => card.CompletedByUserId, completion.CompletedByUserId)
         .SetProperty(card => card.UpdatedAt, updatedAt),
         cancellationToken);
 
@@ -902,6 +932,22 @@ public sealed class PostgresBoardStore(CoordinaDbContext dbContext)
         && list.BoardId == boardId
         && list.Id == listId,
         cancellationToken);
+  }
+
+  private async Task<int> NextCardPositionAsync(
+    Guid workspaceId,
+    Guid projectId,
+    Guid boardId,
+    Guid listId,
+    CancellationToken cancellationToken)
+  {
+    return await dbContext.BoardCards
+      .Where(card => card.WorkspaceId == workspaceId
+        && card.ProjectId == projectId
+        && card.BoardId == boardId
+        && card.ListId == listId)
+      .Select(card => (int?)card.Position)
+      .MaxAsync(cancellationToken) + 1 ?? 0;
   }
 
   private async Task<bool> CardExistsAsync(

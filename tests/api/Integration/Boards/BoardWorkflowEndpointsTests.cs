@@ -24,6 +24,9 @@ public sealed class BoardWorkflowEndpointsTests(ApiTestApplicationFactory factor
     var board = await CreateBoardAsync(scope, template, null);
 
     Assert.Equal(expectedStatuses, StatusesOf(board));
+    Assert.All(
+      board.Lists.SelectMany(list => list.Cards.Select(card => (list, card))),
+      item => Assert.Equal(item.list.TaskStatus == "DONE", item.card.IsCompleted));
   }
 
   [Theory]
@@ -106,6 +109,123 @@ public sealed class BoardWorkflowEndpointsTests(ApiTestApplicationFactory factor
     Assert.Equal("DONE", list.TaskStatus);
   }
 
+  [Fact]
+  public async Task CreateCard_InDoneList_IsCompleted()
+  {
+    var scope = await CreateScopeAsync();
+    var board = await CreateBoardAsync(scope, "BASIC", null);
+    var doneList = ListWithStatus(board, "DONE");
+
+    var updated = await CreateCardAsync(scope, board, doneList.Id, "Already shipped");
+
+    var card = FindCard(updated, "Already shipped");
+    Assert.True(card.IsCompleted);
+    Assert.NotNull(card.CompletedAt);
+  }
+
+  [Fact]
+  public async Task MoveCard_IntoDoneList_CompletesCard()
+  {
+    var scope = await CreateScopeAsync();
+    var board = await CreateBoardAsync(scope, "BASIC", null);
+    var created = await CreateCardAsync(scope, board, ListWithStatus(board, "TODO").Id, "Ship");
+    var doneList = ListWithStatus(board, "DONE");
+
+    var moved = await MoveCardAsync(scope, board, FindCard(created, "Ship").Id, doneList.Id);
+
+    var card = FindCard(moved, "Ship");
+    Assert.Equal(doneList.Id, card.ListId);
+    Assert.True(card.IsCompleted);
+    Assert.NotNull(card.CompletedAt);
+  }
+
+  [Fact]
+  public async Task MoveCard_OutOfDoneList_ReopensCard()
+  {
+    var scope = await CreateScopeAsync();
+    var board = await CreateBoardAsync(scope, "BASIC", null);
+    var created = await CreateCardAsync(scope, board, ListWithStatus(board, "DONE").Id, "Regressed");
+    var activeList = ListWithStatus(board, "IN_PROGRESS");
+
+    var moved = await MoveCardAsync(scope, board, FindCard(created, "Regressed").Id, activeList.Id);
+
+    var card = FindCard(moved, "Regressed");
+    Assert.Equal(activeList.Id, card.ListId);
+    Assert.False(card.IsCompleted);
+    Assert.Null(card.CompletedAt);
+  }
+
+  [Fact]
+  public async Task CompleteCard_MovesToFirstDoneList()
+  {
+    var scope = await CreateScopeAsync();
+    var board = await CreateBoardAsync(scope, "BUG_TRACKING", null);
+    var created = await CreateCardAsync(scope, board, ListWithStatus(board, "TODO").Id, "Fix crash");
+    var card = FindCard(created, "Fix crash");
+
+    var completed = await UpdateCardAsync(scope, board, card.Id, new { isCompleted = true });
+
+    var updated = FindCard(completed, "Fix crash");
+    Assert.Equal(ListWithStatus(board, "DONE").Id, updated.ListId);
+    Assert.True(updated.IsCompleted);
+  }
+
+  [Fact]
+  public async Task ReopenCard_MovesToFirstTodoList()
+  {
+    var scope = await CreateScopeAsync();
+    var board = await CreateBoardAsync(scope, "AGILE_SCRUM", null);
+    var created = await CreateCardAsync(scope, board, ListWithStatus(board, "DONE").Id, "Reopen me");
+    var card = FindCard(created, "Reopen me");
+
+    var reopened = await UpdateCardAsync(scope, board, card.Id, new { isCompleted = false });
+
+    var updated = FindCard(reopened, "Reopen me");
+    var backlog = board.Lists.Single(list => list.Title == "Backlog");
+    Assert.Equal(backlog.Id, updated.ListId);
+    Assert.False(updated.IsCompleted);
+  }
+
+  [Fact]
+  public async Task CompleteCard_WithoutDoneList_ReturnsConflictAndPreservesCard()
+  {
+    var scope = await CreateScopeAsync();
+    var board = await CreateBoardAsync(scope, "CUSTOM", ["Only"]);
+    var created = await CreateCardAsync(scope, board, board.Lists.Single().Id, "Stuck");
+    var card = FindCard(created, "Stuck");
+
+    var response = await SendAsync(
+      scope.AccessToken,
+      HttpMethod.Patch,
+      $"{BoardPath(scope, board)}/cards/{card.Id}",
+      new { isCompleted = true, title = "Renamed while stuck" });
+
+    Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    var reloaded = await SendForAsync<BoardResponse>(
+      scope.AccessToken,
+      HttpMethod.Get,
+      $"/workspaces/{scope.WorkspaceId}/projects/{scope.ProjectId}/board");
+    var unchanged = FindCard(reloaded, "Stuck");
+    Assert.False(unchanged.IsCompleted);
+    Assert.Equal(card.ListId, unchanged.ListId);
+  }
+
+  [Fact]
+  public async Task UpdateCard_WithoutCompletionChange_StaysInList()
+  {
+    var scope = await CreateScopeAsync();
+    var board = await CreateBoardAsync(scope, "BASIC", null);
+    var activeList = ListWithStatus(board, "IN_PROGRESS");
+    var created = await CreateCardAsync(scope, board, activeList.Id, "Polish");
+    var card = FindCard(created, "Polish");
+
+    var updated = await UpdateCardAsync(scope, board, card.Id, new { title = "Polish UI" });
+
+    var renamed = FindCard(updated, "Polish UI");
+    Assert.Equal(activeList.Id, renamed.ListId);
+    Assert.False(renamed.IsCompleted);
+  }
+
   private static string[] StatusesOf(BoardResponse board) =>
     board.Lists
       .OrderBy(list => list.Position)
@@ -114,6 +234,55 @@ public sealed class BoardWorkflowEndpointsTests(ApiTestApplicationFactory factor
 
   private static string BoardPath(TestScope scope, BoardResponse board) =>
     $"/workspaces/{scope.WorkspaceId}/projects/{scope.ProjectId}/boards/{board.Id}";
+
+  private static BoardListResponse ListWithStatus(BoardResponse board, string status) =>
+    board.Lists
+      .OrderBy(list => list.Position)
+      .First(list => list.TaskStatus == status);
+
+  private static BoardCardResponse FindCard(BoardResponse board, string title) =>
+    board.Lists
+      .SelectMany(list => list.Cards)
+      .Single(card => card.Title == title);
+
+  private Task<BoardResponse> CreateCardAsync(
+    TestScope scope,
+    BoardResponse board,
+    string listId,
+    string title)
+  {
+    return SendForBoardAsync(
+      scope,
+      HttpMethod.Post,
+      $"{BoardPath(scope, board)}/lists/{listId}/cards",
+      new { title });
+  }
+
+  private Task<BoardResponse> MoveCardAsync(
+    TestScope scope,
+    BoardResponse board,
+    string cardId,
+    string listId)
+  {
+    return SendForBoardAsync(
+      scope,
+      HttpMethod.Patch,
+      $"{BoardPath(scope, board)}/cards/{cardId}/move",
+      new { listId });
+  }
+
+  private Task<BoardResponse> UpdateCardAsync(
+    TestScope scope,
+    BoardResponse board,
+    string cardId,
+    object body)
+  {
+    return SendForBoardAsync(
+      scope,
+      HttpMethod.Patch,
+      $"{BoardPath(scope, board)}/cards/{cardId}",
+      body);
+  }
 
   private async Task<TestScope> CreateScopeAsync()
   {

@@ -63,6 +63,7 @@ public interface IBoardStore
     Guid projectId,
     Guid boardId,
     Guid cardId,
+    Guid listId,
     BoardCardMutation mutation,
     DateTimeOffset updatedAt,
     CancellationToken cancellationToken);
@@ -73,6 +74,7 @@ public interface IBoardStore
     Guid boardId,
     Guid cardId,
     Guid listId,
+    BoardCardCompletion completion,
     DateTimeOffset updatedAt,
     CancellationToken cancellationToken);
 
@@ -152,6 +154,14 @@ public sealed record BoardCardMutation(
   bool IsCompleted,
   DateTimeOffset? CompletedAt,
   Guid? CompletedByUserId);
+
+public sealed record BoardCardCompletion(
+  bool IsCompleted,
+  DateTimeOffset? CompletedAt,
+  Guid? CompletedByUserId)
+{
+  public static BoardCardCompletion Open { get; } = new(false, null, null);
+}
 
 public sealed record BoardListSeed(
   string Title,

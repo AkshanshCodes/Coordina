@@ -97,8 +97,8 @@ public sealed class InMemoryBoardStore : IBoardStore
           cardSeed.Priority,
           null,
           cardSeed.Labels.ToArray(),
-          false,
-          null,
+          listSeed.TaskStatus == BoardTaskStatus.Done,
+          listSeed.TaskStatus == BoardTaskStatus.Done ? createdAt : null,
           null,
           cardPosition++,
           createdAt,
@@ -241,6 +241,7 @@ public sealed class InMemoryBoardStore : IBoardStore
     Guid projectId,
     Guid boardId,
     Guid cardId,
+    Guid listId,
     BoardCardMutation mutation,
     DateTimeOffset updatedAt,
     CancellationToken cancellationToken)
@@ -248,6 +249,7 @@ public sealed class InMemoryBoardStore : IBoardStore
     cancellationToken.ThrowIfCancellationRequested();
 
     if (!TryGetBoard(workspaceId, projectId, boardId, out var board)
+      || !TryGetList(workspaceId, projectId, boardId, listId, out _)
       || !_cards.TryGetValue(cardId, out var card)
       || card.BoardId != boardId)
     {
@@ -256,6 +258,10 @@ public sealed class InMemoryBoardStore : IBoardStore
 
     _cards[cardId] = card with
     {
+      ListId = listId,
+      Position = card.ListId == listId
+        ? card.Position
+        : NextCardPosition(boardId, listId),
       Title = mutation.Title,
       Description = mutation.Description,
       Priority = mutation.Priority,
@@ -278,6 +284,7 @@ public sealed class InMemoryBoardStore : IBoardStore
     Guid boardId,
     Guid cardId,
     Guid listId,
+    BoardCardCompletion completion,
     DateTimeOffset updatedAt,
     CancellationToken cancellationToken)
   {
@@ -291,16 +298,13 @@ public sealed class InMemoryBoardStore : IBoardStore
       return Task.FromResult<ProjectBoard?>(null);
     }
 
-    var position = _cards.Values
-      .Where(candidate => candidate.BoardId == boardId
-        && candidate.ListId == listId)
-      .Select(candidate => (int?)candidate.Position)
-      .Max() + 1 ?? 0;
-
     _cards[cardId] = card with
     {
       ListId = listId,
-      Position = position,
+      Position = NextCardPosition(boardId, listId),
+      IsCompleted = completion.IsCompleted,
+      CompletedAt = completion.CompletedAt,
+      CompletedByUserId = completion.CompletedByUserId,
       UpdatedAt = updatedAt
     };
     _boards[boardId] = board with { UpdatedAt = updatedAt };
@@ -560,6 +564,15 @@ public sealed class InMemoryBoardStore : IBoardStore
     }
 
     return Task.FromResult(_cards.TryRemove(cardId, out _));
+  }
+
+  private int NextCardPosition(Guid boardId, Guid listId)
+  {
+    return _cards.Values
+      .Where(candidate => candidate.BoardId == boardId
+        && candidate.ListId == listId)
+      .Select(candidate => (int?)candidate.Position)
+      .Max() + 1 ?? 0;
   }
 
   private bool TryGetBoard(
