@@ -27,6 +27,14 @@ public sealed class BoardListService(
     }
 
     var errors = BoardRules.ValidateList(request.Title);
+    var taskStatus = BoardRules.ParseListStatus(
+      request.TaskStatus,
+      out var statusError);
+
+    if (statusError is not null)
+    {
+      errors["TaskStatus"] = [statusError];
+    }
 
     if (errors.Count > 0)
     {
@@ -40,6 +48,7 @@ public sealed class BoardListService(
       projectId,
       boardId,
       request.Title!.Trim(),
+      taskStatus,
       DateTimeOffset.UtcNow,
       cancellationToken);
 

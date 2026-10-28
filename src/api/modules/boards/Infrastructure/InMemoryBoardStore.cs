@@ -78,6 +78,7 @@ public sealed class InMemoryBoardStore : IBoardStore
         workspaceId,
         listSeed.Title,
         position++,
+        listSeed.TaskStatus,
         createdAt,
         createdAt);
       _lists[list.Id] = list;
@@ -115,6 +116,7 @@ public sealed class InMemoryBoardStore : IBoardStore
     Guid projectId,
     Guid boardId,
     string title,
+    BoardTaskStatus taskStatus,
     DateTimeOffset createdAt,
     CancellationToken cancellationToken)
   {
@@ -136,6 +138,7 @@ public sealed class InMemoryBoardStore : IBoardStore
       workspaceId,
       title,
       position,
+      taskStatus,
       createdAt,
       createdAt);
     _lists[list.Id] = list;
@@ -622,6 +625,7 @@ public sealed class InMemoryBoardStore : IBoardStore
       list.WorkspaceId,
       list.Title,
       list.Position,
+      list.TaskStatus,
       list.CreatedAt,
       list.UpdatedAt,
       _cards.Values
@@ -711,6 +715,7 @@ public sealed class InMemoryBoardStore : IBoardStore
     Guid WorkspaceId,
     string Title,
     int Position,
+    BoardTaskStatus TaskStatus,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
 

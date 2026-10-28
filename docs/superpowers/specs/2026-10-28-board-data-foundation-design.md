@@ -74,13 +74,14 @@ Assignment rules, applied once at creation and never re-derived:
 
 | Source | Rule |
 | --- | --- |
-| Template | Declared per list in `BoardTemplateCatalog`: first list `TODO`, final delivered list `DONE`, others `IN_PROGRESS` |
+| Template | Declared per list in `BoardTemplateCatalog`, following Jira status categories: not-started lists (Backlog, Sprint, Ideas, Planned, Reported, To Do) `TODO`; final delivered list `DONE`; others `IN_PROGRESS` |
 | Custom board (`customListTitles`) | First `TODO`, last `DONE` when ≥2 lists, middle `IN_PROGRESS`; a single list is `TODO` |
 | `POST .../lists` | Optional `taskStatus`, default `TODO`; invalid values return a validation problem |
 | Rename (`PATCH .../lists/{id}`) | Status unchanged |
 
-The migration `AddBoardListTaskStatus` backfills existing rows with the same
-position rule (rank by `position, created_at, id` within each board), then aligns
+The migration `AddBoardListTaskStatus` backfills existing rows with the custom
+position rule (rank by `position, created_at, id` within each board), corrects the
+template lists `Sprint` and `Planned` to `TODO`, then aligns
 existing cards with the invariant below (cards in `DONE` lists completed with
 `completed_at = updated_at`; completed cards in other lists reopened). This
 rewrites dev data only.

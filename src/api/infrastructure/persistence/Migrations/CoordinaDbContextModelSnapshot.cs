@@ -361,6 +361,12 @@ namespace Coordina.Api.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("project_id");
 
+                    b.Property<string>("TaskStatus")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("task_status");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(80)
@@ -381,7 +387,10 @@ namespace Coordina.Api.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("WorkspaceId", "ProjectId", "BoardId");
 
-                    b.ToTable("board_lists", (string)null);
+                    b.ToTable("board_lists", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_board_lists_task_status", "task_status IN ('TODO', 'IN_PROGRESS', 'DONE')");
+                        });
                 });
 
             modelBuilder.Entity("Coordina.Api.Modules.Projects.Infrastructure.ProjectEntity", b =>

@@ -5,6 +5,7 @@ public sealed record BoardListResponse(
   Guid BoardId,
   string Title,
   int Position,
+  string TaskStatus,
   DateTimeOffset CreatedAt,
   DateTimeOffset UpdatedAt,
   IReadOnlyCollection<BoardCardResponse> Cards);

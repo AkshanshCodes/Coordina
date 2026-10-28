@@ -242,6 +242,7 @@ public sealed class PostgresBoardStore(CoordinaDbContext dbContext)
         ProjectId = projectId,
         Title = listSeed.Title,
         Position = position++,
+        TaskStatus = listSeed.TaskStatus,
         CreatedAt = createdAt,
         UpdatedAt = createdAt
       };
@@ -286,6 +287,7 @@ public sealed class PostgresBoardStore(CoordinaDbContext dbContext)
     Guid projectId,
     Guid boardId,
     string title,
+    BoardTaskStatus taskStatus,
     DateTimeOffset createdAt,
     CancellationToken cancellationToken)
   {
@@ -315,6 +317,7 @@ public sealed class PostgresBoardStore(CoordinaDbContext dbContext)
       BoardId = boardId,
       Title = title,
       Position = nextPosition,
+      TaskStatus = taskStatus,
       CreatedAt = createdAt,
       UpdatedAt = createdAt
     });
@@ -951,6 +954,7 @@ public sealed class PostgresBoardStore(CoordinaDbContext dbContext)
       entity.WorkspaceId,
       entity.Title,
       entity.Position,
+      entity.TaskStatus,
       entity.CreatedAt,
       entity.UpdatedAt,
       cards);

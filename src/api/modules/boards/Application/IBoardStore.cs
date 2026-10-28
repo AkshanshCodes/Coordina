@@ -29,6 +29,7 @@ public interface IBoardStore
     Guid projectId,
     Guid boardId,
     string title,
+    BoardTaskStatus taskStatus,
     DateTimeOffset createdAt,
     CancellationToken cancellationToken);
 
@@ -154,6 +155,7 @@ public sealed record BoardCardMutation(
 
 public sealed record BoardListSeed(
   string Title,
+  BoardTaskStatus TaskStatus,
   IReadOnlyCollection<BoardCardSeed> Cards);
 
 public sealed record BoardCardSeed(

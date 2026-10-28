@@ -7,6 +7,7 @@ public sealed record ProjectBoardList(
   Guid WorkspaceId,
   string Title,
   int Position,
+  BoardTaskStatus TaskStatus,
   DateTimeOffset CreatedAt,
   DateTimeOffset UpdatedAt,
   IReadOnlyCollection<ProjectBoardCard> Cards);

@@ -144,7 +144,7 @@
 
 - [ ] **Step 1: Write failing fast tests**
 
-  `TemplateBoards_ExposeDeclaredStatuses` (Basic: TODO/IN_PROGRESS/DONE; BugTracking: TODO/IN_PROGRESS/IN_PROGRESS/DONE), `CustomBoard_AssignsStatusesByPosition` (1, 2, and 4 lists), `CreateList_DefaultsToTodo`, `CreateList_AcceptsInProgress`, `CreateList_RejectsUnknownStatus`, `RenameList_DoesNotChangeTaskStatus`. Assert the exact string `IN_PROGRESS`.
+  `TemplateBoards_ExposeDeclaredStatuses` (Basic: TODO/IN_PROGRESS/DONE; BugTracking: TODO/IN_PROGRESS/IN_PROGRESS/DONE; AgileScrum: TODO/TODO/IN_PROGRESS/IN_PROGRESS/DONE), `CustomBoard_AssignsStatusesByPosition` (1, 2, and 4 lists), `CreateList_DefaultsToTodo`, `CreateList_AcceptsInProgress`, `CreateList_RejectsUnknownStatus`, `RenameList_DoesNotChangeTaskStatus`. Assert the exact string `IN_PROGRESS`.
 
 - [ ] **Step 2: Confirm RED**
 

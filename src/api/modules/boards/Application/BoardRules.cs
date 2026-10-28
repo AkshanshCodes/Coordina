@@ -53,18 +53,25 @@ internal static class BoardRules
   {
     if (template == BoardTemplate.Custom)
     {
-      return (customListTitles ?? [])
+      var titles = (customListTitles ?? [])
         .Select(NormalizeText)
         .OfType<string>()
         .Distinct(StringComparer.OrdinalIgnoreCase)
         .Take(12)
-        .Select(title => new BoardListSeed(title, []))
+        .ToArray();
+
+      return titles
+        .Select((title, index) => new BoardListSeed(
+          title,
+          CustomListStatus(index, titles.Length),
+          []))
         .ToArray();
     }
 
     return BoardTemplateCatalog.GetLists(template)
       .Select(list => new BoardListSeed(
         list.Title,
+        list.TaskStatus,
         list.Cards
           .Select(card => new BoardCardSeed(
             card.Title,
@@ -73,6 +80,38 @@ internal static class BoardRules
             card.Labels))
           .ToArray()))
       .ToArray();
+  }
+
+  public static BoardTaskStatus ParseListStatus(
+    string? taskStatus,
+    out string? error)
+  {
+    error = null;
+
+    if (string.IsNullOrWhiteSpace(taskStatus))
+    {
+      return BoardTaskStatus.Todo;
+    }
+
+    if (BoardTaskStatusCodec.TryParse(taskStatus, out var parsed))
+    {
+      return parsed;
+    }
+
+    error = "List task status must be TODO, IN_PROGRESS, or DONE.";
+    return BoardTaskStatus.Todo;
+  }
+
+  private static BoardTaskStatus CustomListStatus(int index, int count)
+  {
+    if (index == 0)
+    {
+      return BoardTaskStatus.Todo;
+    }
+
+    return index == count - 1
+      ? BoardTaskStatus.Done
+      : BoardTaskStatus.InProgress;
   }
 
   public static Dictionary<string, string[]> ValidateBoard(

@@ -14,6 +14,8 @@ public abstract class PostgresApiTest(PostgresContainerFixture postgres)
   private PostgresApiFactory? _factory;
   private ApiClient? _api;
 
+  protected PostgresContainerFixture Postgres { get; } = postgres;
+
   protected PostgresDatabase Database => _database
     ?? throw new InvalidOperationException("Test database is not initialized.");
 
@@ -25,7 +27,7 @@ public abstract class PostgresApiTest(PostgresContainerFixture postgres)
 
   public async Task InitializeAsync()
   {
-    _database = await postgres.CreateMigratedDatabaseAsync();
+    _database = await Postgres.CreateMigratedDatabaseAsync();
     _factory = new PostgresApiFactory(_database);
     _api = new ApiClient(_factory.CreateClient());
   }

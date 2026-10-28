@@ -24,6 +24,7 @@ internal static class BoardResponseMapper
       list.BoardId,
       list.Title,
       list.Position,
+      BoardTaskStatusCodec.Format(list.TaskStatus),
       list.CreatedAt,
       list.UpdatedAt,
       list.Cards

@@ -1,3 +1,4 @@
+using Coordina.Api.Modules.Boards.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -8,7 +9,9 @@ public sealed class BoardListEntityConfiguration
 {
   public void Configure(EntityTypeBuilder<BoardListEntity> builder)
   {
-    builder.ToTable("board_lists");
+    builder.ToTable("board_lists", table => table.HasCheckConstraint(
+      "ck_board_lists_task_status",
+      "task_status IN ('TODO', 'IN_PROGRESS', 'DONE')"));
 
     builder.HasKey(list => list.Id);
 
@@ -34,6 +37,14 @@ public sealed class BoardListEntityConfiguration
 
     builder.Property(list => list.Position)
       .HasColumnName("position")
+      .IsRequired();
+
+    builder.Property(list => list.TaskStatus)
+      .HasColumnName("task_status")
+      .HasConversion(
+        status => BoardTaskStatusCodec.Format(status),
+        value => BoardTaskStatusCodec.Parse(value))
+      .HasMaxLength(16)
       .IsRequired();
 
     builder.Property(list => list.CreatedAt)
