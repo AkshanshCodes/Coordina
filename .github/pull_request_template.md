@@ -1,6 +1,13 @@
+<!--
+The title becomes the commit on master: type(scope): lowercase summary
+Example: fix(workspaces): consume invites atomically
+-->
+
+Closes #
+
 ## What and why
 
-<!-- What does this change do, and why is it needed? Link the issue if there is one. -->
+<!-- What does this change do, and why is it needed? -->
 
 ## How to verify
 

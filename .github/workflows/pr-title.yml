@@ -1,0 +1,35 @@
+name: PR title
+
+# Pull requests are squash-merged, so the title becomes the commit message on
+# master. It must follow Conventional Commits.
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+    branches:
+      - master
+
+permissions: {}
+
+jobs:
+  title:
+    name: Conventional title
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          pattern='^(feat|fix|perf|refactor|test|docs|build|ci|chore|revert)(\([a-z0-9-]+\))?!?: [^A-Z ].*[^.]$'
+
+          if [[ ! "$TITLE" =~ $pattern ]]; then
+            echo "::error::'$TITLE' is not a Conventional Commits title."
+            echo "Expected: type(scope): lowercase imperative summary, without a final period."
+            echo "Example:  fix(workspaces): consume invites atomically"
+            exit 1
+          fi
+
+          if (( ${#TITLE} > 72 )); then
+            echo "::error::The title is ${#TITLE} characters long. Keep it at 72 or fewer."
+            exit 1
+          fi

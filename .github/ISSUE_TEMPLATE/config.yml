@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or idea
+    url: https://github.com/Neptune2k21/Coordina/discussions
+    about: Ask questions and discuss ideas before they become issues.
+  - name: Security vulnerability
+    url: https://github.com/Neptune2k21/Coordina/security/advisories/new
+    about: Report vulnerabilities privately. Never open a public issue for them.

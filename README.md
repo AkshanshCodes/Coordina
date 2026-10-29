@@ -162,9 +162,11 @@ src/web/src
 │   ├── api-postgres         # API tests against a real PostgreSQL 16 (Testcontainers, Docker required)
 │   └── graph-engine         # Native C++ graph engine tests
 ├── docker                   # PostgreSQL and Adminer compose services
-├── .github/workflows        # CI quality workflow
+├── .github                  # CI workflows, issue/PR templates, CODEOWNERS, Dependabot
 ├── Makefile                 # Local workflow entrypoint
 ├── CONTRIBUTING.md          # Contribution workflow
+├── CODE_OF_CONDUCT.md       # Community standards
+├── SUPPORT.md               # Where to ask for help
 ├── SECURITY.md              # Security policy
 └── LICENSE                  # MIT license
 ```
@@ -265,7 +267,7 @@ The Makefile is the main local interface.
 
 ## Quality Gate
 
-The CI workflow runs on pushes and pull requests targeting `master` and `develop`.
+The CI workflow runs on pushes and pull requests targeting `master`.
 
 ```bash
 make quality

@@ -4,11 +4,12 @@ on:
   pull_request:
     branches:
       - master
-      - develop
   push:
     branches:
       - master
-      - develop
+
+permissions:
+  contents: read
 
 concurrency:
   group: quality-${{ github.workflow }}-${{ github.ref }}

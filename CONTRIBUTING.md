@@ -49,15 +49,76 @@ Run the app:
 make dev
 ```
 
-## Branching
+## Contribution Workflow
 
-Use short, descriptive branch names:
+By participating you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
+Questions go to [Discussions](https://github.com/Neptune2k21/Coordina/discussions),
+vulnerabilities to a private advisory (see [SECURITY.md](SECURITY.md)).
 
-```text
-feature/workspace-projects
-fix/invite-consumption-race
-docs/security-policy
+### 1. Start from an issue
+
+Every pull request starts from an issue, except typo or one-line doc fixes.
+
+1. Search the existing issues, then open one with the bug or feature template.
+2. A maintainer triages it: `status: needs triage` becomes `status: accepted`,
+   `status: needs info`, or a `resolution:` label.
+3. Comment on an accepted issue to take it, and wait to be assigned before
+   starting. This avoids two people building the same thing.
+
+New to the project? Look for
+[`good first issue`](https://github.com/Neptune2k21/Coordina/labels/good%20first%20issue)
+and [`help wanted`](https://github.com/Neptune2k21/Coordina/labels/help%20wanted).
+
+### 2. Work in your fork
+
+Only maintainers create branches in this repository. Contributors work in a fork:
+
+```bash
+gh repo fork Neptune2k21/Coordina --clone
+cd Coordina
+git switch -c fix/invite-consumption-race
 ```
+
+Name branches `<type>/<short-description>`, using the commit types below.
+Keep your branch current by rebasing, not merging:
+
+```bash
+git fetch upstream
+git rebase upstream/master
+```
+
+### 3. Open a pull request against `master`
+
+`master` is the only long-lived branch. It is protected:
+
+| Rule | Effect |
+| --- | --- |
+| Pull request required | Nobody pushes to `master` directly |
+| 1 approval from a code owner | See `.github/CODEOWNERS` |
+| New commits dismiss approvals | A reviewer approves what is actually merged |
+| Conversations resolved | Every review thread is closed before merging |
+| `Format, lint, test and build` passes | The full quality gate runs in CI |
+| `Conventional title` passes | The PR title follows the commit style below |
+| Branch up to date | The branch is rebased on the latest `master` |
+| Squash merge only | One pull request becomes one commit on `master` |
+
+Open a draft pull request early if you want feedback. Link the issue with
+`Closes #123` in the description. For a first contribution, a maintainer has to
+approve the CI run before it starts.
+
+### 4. Labels
+
+| Group | Labels | Set by |
+| --- | --- | --- |
+| Type | `type: bug`, `type: feature`, `type: docs`, `type: refactor`, `type: test`, `type: chore`, `type: security`, `type: dependencies` | Issue template or maintainer |
+| Area | `area: api`, `area: web`, `area: graph-engine`, `area: infra` | Labeler workflow on pull requests, maintainer on issues |
+| Status | `status: needs triage`, `status: needs info`, `status: accepted`, `status: blocked` | Maintainer |
+| Priority | `priority: critical`, `priority: high`, `priority: low` | Maintainer |
+| Resolution | `resolution: duplicate`, `resolution: invalid`, `resolution: wontfix` | Maintainer |
+| Community | `good first issue`, `help wanted` | Maintainer |
+| Release | `breaking change` | Maintainer |
+
+Release notes are grouped by the `type:` label of each merged pull request.
 
 ## Backend Guidelines
 
@@ -231,8 +292,14 @@ Before requesting review, confirm:
 
 ## Commit Style
 
-Use [Conventional Commits](https://www.conventionalcommits.org/) with a scope
-and an imperative summary:
+Pull requests are squash-merged, so the **pull request title** becomes the
+commit on `master`. CI checks that it follows
+[Conventional Commits](https://www.conventionalcommits.org/): a type, an
+optional scope, and a lowercase imperative summary without a final period, in
+72 characters or fewer. Mark breaking changes with `!` (`feat(api)!: ...`).
+
+Allowed types: `feat`, `fix`, `perf`, `refactor`, `test`, `docs`, `build`,
+`ci`, `chore`, `revert`. Use the same style for the commits inside your branch:
 
 ```text
 feat(boards): add card effort estimate
@@ -258,3 +325,9 @@ Reviews should focus on correctness first:
 | Product feel | Is the user experience clear and consistent? |
 
 Keep feedback specific and actionable.
+
+## Releases
+
+Maintainers release from `master` by pushing a `vX.Y.Z` tag and drafting a
+GitHub release from it with generated notes. Only maintainers can create,
+move, or delete `v*` tags.

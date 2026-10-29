@@ -1,0 +1,20 @@
+# Categories for the notes GitHub generates when a release is drafted from a
+# v* tag. Pull requests are sorted by their type label.
+changelog:
+  exclude:
+    labels: ["resolution: duplicate", "resolution: invalid", "resolution: wontfix"]
+  categories:
+    - title: Breaking changes
+      labels: ["breaking change"]
+    - title: Features
+      labels: ["type: feature"]
+    - title: Fixes
+      labels: ["type: bug"]
+    - title: Security
+      labels: ["type: security"]
+    - title: Documentation
+      labels: ["type: docs"]
+    - title: Dependencies
+      labels: ["type: dependencies"]
+    - title: Other changes
+      labels: ["*"]

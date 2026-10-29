@@ -1,0 +1,30 @@
+"area: api":
+  - changed-files:
+      - any-glob-to-any-file:
+          - src/api/**
+          - tests/api/**
+          - tests/api-postgres/**
+
+"area: web":
+  - changed-files:
+      - any-glob-to-any-file: src/web/**
+
+"area: graph-engine":
+  - changed-files:
+      - any-glob-to-any-file:
+          - src/graph-engine/**
+          - tests/graph-engine/**
+
+"area: infra":
+  - changed-files:
+      - any-glob-to-any-file:
+          - .github/**
+          - docker/**
+          - infra/**
+          - Makefile
+          - Directory.Build.*
+
+"type: docs":
+  - changed-files:
+      - all-globs-to-all-files:
+          - "{docs/**,*.md,.github/*.md,.github/ISSUE_TEMPLATE/**}"
