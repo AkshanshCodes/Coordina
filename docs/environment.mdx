@@ -30,3 +30,24 @@ VITE_DOCS_URL=http://localhost:3000
 
 `VITE_DOCS_URL` should point to Mintlify. If it is not set, the web app falls
 back to the production docs domain.
+
+## Environment configuration
+
+The local `.env` file follows this shape:
+
+```dotenv
+POSTGRES_USER=coordina
+POSTGRES_PASSWORD=change-me
+POSTGRES_DB=coordina
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+ADMINER_PORT=8080
+ASPNETCORE_ENVIRONMENT=Development
+
+Auth__Issuer=Coordina.Api
+Auth__Audience=Coordina.Web
+Auth__SigningKey=change-me-to-a-secure-random-secret-with-at-least-32-characters
+Auth__AccessTokenMinutes=60
+```
+
+The checked-in example is for local development only. Use a unique signing key and managed secrets outside local environments.

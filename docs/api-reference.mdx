@@ -36,3 +36,68 @@ curl -X POST http://localhost:5050/auth/register \
 When the API has a public base URL, add that URL to the OpenAPI `servers`
 metadata or publish a generated `openapi.json` inside this docs directory. Then
 Mintlify can render endpoint pages from the same contract.
+
+## API architecture
+
+The API is split into a kernel, shared helpers, and feature modules. Dependencies flow in one direction: `modules → shared → core`, and a test enforces that direction.
+
+| Layer | Responsibility |
+| --- | --- |
+| `src/api/core` | Module contract (`IModule`), host setup, `Result`/`Error`, result-to-HTTP mapping, `CurrentUser`, persistence, and configuration |
+| `src/api/shared` | Pure helpers: `ValidationErrors`, `TextNormalizer`, and `EnumCode` |
+| `src/api/modules` | Feature modules built on core and shared |
+
+Each feature module follows this structure:
+
+```text
+src/api/modules/<feature>
+├── Application           # Use cases and ports, returning core Result values
+├── Contracts             # HTTP request and response contracts
+├── Domain                # Domain records and enums
+├── Infrastructure        # EF entities, configurations, stores
+├── <Feature>Module.cs    # IModule: registers services and endpoints
+└── <Feature>Endpoints.cs
+```
+
+Current modules:
+
+| Module | Responsibility |
+| --- | --- |
+| `auth` | Account registration, login, password hashing, and JWT issuing |
+| `workspaces` | Workspace lifecycle, invitations, membership, and authorization rules |
+| `projects` | Workspace-owned projects with tenant-scoped reads and owner-only deletion |
+| `boards` | Project boards: templates, lists with explicit workflow status, cards, assignees, collaboration, and dependencies. Board cards are the single source of truth for project work |
+| `health` | Runtime health endpoint |
+
+
+### API endpoints
+
+```http
+GET    /workspaces/{workspaceId}/projects
+GET    /workspaces/{workspaceId}/projects?includeArchived=true
+GET    /workspaces/{workspaceId}/projects?includeCompleted=true
+POST   /workspaces/{workspaceId}/projects
+GET    /workspaces/{workspaceId}/projects/{projectId}
+PATCH  /workspaces/{workspaceId}/projects/{projectId}
+DELETE /workspaces/{workspaceId}/projects/{projectId}            # archive
+DELETE /workspaces/{workspaceId}/projects/{projectId}/permanent  # hard delete
+
+
+### Board API endpoints
+
+```http
+GET    /workspaces/{workspaceId}/projects/{projectId}/board
+POST   /workspaces/{workspaceId}/projects/{projectId}/boards
+POST   /workspaces/{workspaceId}/projects/{projectId}/boards/{boardId}/lists
+PATCH  /workspaces/{workspaceId}/projects/{projectId}/boards/{boardId}/lists/{listId}
+POST   /workspaces/{workspaceId}/projects/{projectId}/boards/{boardId}/lists/{listId}/cards
+PATCH  /workspaces/{workspaceId}/projects/{projectId}/boards/{boardId}/cards/{cardId}
+PATCH  /workspaces/{workspaceId}/projects/{projectId}/boards/{boardId}/cards/{cardId}/move
+DELETE /workspaces/{workspaceId}/projects/{projectId}/boards/{boardId}/cards/{cardId}
+```
+
+Boards belong to projects, lists belong to boards, and cards belong to lists. The frontend renders a compact horizontal work surface with inline list editing, quick card creation, native drag and drop, and a reusable side panel for card details.
+
+Every list has an explicit workflow status, `taskStatus`, set when the list is created and never derived from its title: `TODO`, `IN_PROGRESS`, or `DONE`. Renaming a list never changes its meaning, metrics, or WIP limits.
+
+

@@ -54,6 +54,28 @@ enum fields whose "must be A, B, or C" message is generated from the enum),
 (UPPER_SNAKE_CASE codes such as `IN_PROGRESS`, used for API payloads and
 database columns alike).
 
+## Repository structure
+
+```text
+.
+├── src
+│   ├── api                  # ASP.NET Core API
+│   ├── graph-engine          # Native C++ graph engine
+│   └── web                  # React application
+├── tests
+│   ├── api                  # Fast API tests (in-memory stores)
+│   ├── api-postgres         # API tests against PostgreSQL 16 (Testcontainers; Docker required)
+│   └── graph-engine         # Native C++ graph engine tests
+├── docker                   # PostgreSQL and Adminer compose services
+├── .github                  # CI workflows, issue/PR templates, CODEOWNERS, Dependabot
+├── Makefile                 # Local workflow entrypoint
+├── CONTRIBUTING.md          # Contribution workflow
+├── CODE_OF_CONDUCT.md       # Community standards
+├── SUPPORT.md               # Where to ask for help
+├── SECURITY.md              # Security policy
+└── LICENSE                  # MIT license
+```
+
 A typical endpoint and service built on them:
 
 ```csharp

@@ -1,0 +1,140 @@
+## Native graph engine
+
+The task dependency graph is backed by a native C++ graph engine in `src/graph-engine`. The API consumes it through an `IGraphEngine<Guid>` port, so board pages use one cycle-safe relationship engine while the native implementation can evolve independently.
+
+text
+src/graph-engine
+├── include/coordina_graph_engine.h  # Stable C ABI consumed by .NET
+└── src
+    ├── core/                        # Node/edge types, immutable graph snapshot
+    ├── algorithms/                  # Traversal, cycle-safe validation, topological
+    │                                # order, critical path, node analysis, suggestions
+    ├── planning/                    # Shared board analysis (planning_analysis), next-task
+    │                                # ranking (work_planner), score rules (work_score)
+    └── interop/                     # C ABI exports and array conversion helpers
+
+
+Layers depend inward only: `core` ← `algorithms` ← `planning` ← `interop`.
+
+The board planning view uses one native call, `coordina_graph_analyze_board`, which builds the graph once and returns readiness, dependency order, critical path, node analyses, and ranked work together. It reports an explicit status (`OK`, `INVALID_ARGUMENT`, `INSUFFICIENT_CAPACITY`) separately from output counts. `make graph-engine-benchmark` compares this batch call with the individual calls. Includes are rooted at `src/graph-engine/src` (for example, `#include "algorithms/critical_path.h"`).
+
+## Full Makefile command reference
+
+The Makefile is the main local workflow interface.
+
+| Command | Purpose |
+| --- | --- |
+| `make graph-engine-test` | Build and run the native C++ graph engine tests |
+| `make graph-engine-benchmark` | Benchmark native board analysis (individual calls vs. batch) |
+| `make dev` | Run API watcher and web dev server together |
+| `make api` | Apply migrations and run the API |
+| `make web` | Run the Vite dev server |
+| `make api-test` | Run all .NET tests (fast and PostgreSQL) |
+| `make api-test-fast` | Run .NET tests against in-memory stores |
+| `make api-test-postgres` | Run .NET tests against a disposable PostgreSQL container (Docker required) |
+| `make web-test` | Run Vitest tests |
+| `make web-e2e` | Run Playwright tests |
+| `make lint` | Run format verification, lint, and typecheck |
+| `make test` | Run API, web, and end-to-end tests |
+| `make format` | Format API and web sources |
+| `make quality` | Run the full gate expected by CI |
+| `make docs` | Build the documentation site |
+
+## Quality gate details
+
+The CI workflow runs on pushes and pull requests targeting `master`.
+
+```bash
+make quality
+```
+
+The gate verifies:
+
+| Check | Tooling |
+| --- | --- |
+| API formatting | `dotnet format --verify-no-changes` |
+| Web formatting | Prettier |
+| Web lint | ESLint |
+| Web type safety | TypeScript |
+| API tests | xUnit (in-memory and real PostgreSQL via Testcontainers) |
+| Web tests | Vitest |
+| End-to-end flow | Playwright Chromium |
+| API build | `dotnet build` |
+| Web build | Vite production build |
+
+The current end-to-end flow covers account creation, workspace onboarding, workspace creation, sign-out, sign-in, and return to the existing workspace.
+
+## Project module: lifecycle and permissions
+
+Projects are the first structured work layer inside a workspace. V2 adds lifecycle status, project ownership, metadata, audit fields, and soft deletion.
+
+
+### Lifecycle states
+
+| Status | Behavior |
+| --- | --- |
+| `ACTIVE` | Default status, returned by the default list endpoint |
+| `ARCHIVED` | Hidden by default; returned with `includeArchived=true` |
+| `COMPLETED` | Hidden by default; returned with `includeCompleted=true`; read-only |
+
+### Permission model
+
+| Action | Server-side rule |
+| --- | --- |
+| Create project | Authenticated workspace member |
+| List and view projects | Authenticated workspace member |
+| Project details | Authenticated workspace member; project ID is scoped by workspace ID |
+| Edit project | Workspace `OWNER` or project owner, unless completed |
+| Archive project | Workspace `OWNER` or project owner, unless completed |
+| Restore project | Workspace `OWNER` or project owner |
+| Permanent delete | Workspace `OWNER` only |
+
+### Card completion behavior
+
+| Action | Result |
+| --- | --- |
+| Create or move a card into a `DONE` list | The card is completed |
+| Move a card out of a `DONE` list | The card is reopened |
+| `PATCH` a card with `isCompleted: true` | The card moves to the board's first `DONE` list |
+| `PATCH` a card with `isCompleted: false` | The card moves to the board's first `TODO` list |
+| No list with the target status | `409 Conflict`; card remains unchanged |
+
+### Card fields
+
+| Field | Notes |
+| --- | --- |
+| `id` | Server-generated card ID |
+| `boardId` / `listId` | Mandatory board/list placement |
+| `title` | Required, 180 characters or fewer |
+| `description` | Editable in the side panel |
+| `priority` | Optional `LOW`, `MEDIUM`, or `HIGH` |
+| `dueDate` | Optional date shown compactly on cards |
+| `labels` | Small colored tags for scanning |
+| `isCompleted` / `completedAt` / `completedBy` | Kept consistent with the list's `taskStatus` |
+| `assignees` | Multiple workspace members |
+| `createdAt` / `updatedAt` | Server-managed audit timestamps |
+
+### Future expansion
+
+The project shell reserves space for future modules. The Docs tab is a placeholder for a Notion-like document system, and Settings is isolated from task board state. Future modules should follow the same pattern: project shell for layout/navigation, feature modules for their own contracts, API client, state, and UI.
+
+The board contracts are prepared for possible realtime updates, comments, attachments, notifications, and activity logs. These features are not implemented yet; they should attach to board/card identifiers rather than changing the project shell.
+
+## 10. Roadmap details
+
+| Track | Intent |
+| --- | --- |
+| Boards | Core collaboration workflow; context-aware planning is in place (see `docs/boards.mdx`) |
+| Realtime updates | Shared workspace presence and live state |
+| Audit trail | Owner visibility into membership and sensitive actions |
+| Production hardening | Rate limiting, refresh tokens, secret management, and deployment documentation |
+
+## 11. Documentation site setup
+
+Mintlify should be configured as a monorepo deployment with documentation path `/docs`. The web app redirects `/docs` to `VITE_DOCS_URL`, while the API serves the local OpenAPI tester at `/api-docs`.
+
+The documentation site can be run locally with:
+
+```bash
+make docs
+```

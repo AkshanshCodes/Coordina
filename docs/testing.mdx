@@ -75,6 +75,28 @@ Run the full quality gate before merging:
 make quality
 ```
 
+Run backend tests:
+
+```bash
+make api-test-fast      # in-memory stores, no Docker needed
+make api-test-postgres  # real PostgreSQL 16 in a disposable container
+```
+
+
+### Manual testing
+
+text
+1. Register or sign in at /login.
+2. Create a workspace from /app.
+3. Open /app/projects and create a project.
+4. Archive it and confirm it disappears from the default list.
+5. Enable Archived and confirm it appears with ARCHIVED status.
+6. Mark a project COMPLETED and confirm edits/archive return 409.
+7. Invite a second user and assign project ownership.
+8. Confirm the project owner can edit/archive that project.
+9. Confirm another member receives 403 for edit/archive/delete.
+10. Confirm a non-member receives 404 for project list/details.
+
 ## Manual smoke flow
 
 1. Register or sign in at `/login`.

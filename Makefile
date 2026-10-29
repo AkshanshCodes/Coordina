@@ -118,7 +118,7 @@ web-typecheck:
 	pnpm --dir $(WEB_DIR) typecheck
 
 docs:
-	cd $(DOCS_DIR) && mint dev
+	cd $(DOCS_DIR) && npx mint dev
 
 test: graph-engine-test graph-engine-benchmark-smoke api-test web-test web-e2e
 
@@ -146,3 +146,4 @@ start-api: api
 watch-api: api-watch
 run-web: web
 start-full: docker-up
+

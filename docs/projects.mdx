@@ -22,6 +22,22 @@ DELETE /workspaces/{workspaceId}/projects/{projectId}
 DELETE /workspaces/{workspaceId}/projects/{projectId}/permanent
 ```
 
+### Project shell
+
+| Area | Responsibility |
+| --- | --- |
+| Header | Project name, key, icon, description, and lifecycle badge |
+| Tabs | Board, Docs, and Settings module navigation |
+| Dynamic content | Renders the active project module without mixing concerns |
+
+Current project modules:
+
+| Tab | State |
+| --- | --- |
+| Board | Implemented Trello/Linear-style project board |
+| Docs | Placeholder only: `Coming soon - Notion-like Docs` |
+| Settings | Placeholder only: `Project settings coming soon` |
+
 ## Rules
 
 - All routes require a bearer token.

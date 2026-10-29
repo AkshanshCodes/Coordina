@@ -1,0 +1,58 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "Coordina",
+  "colors": {
+    "primary": "#16A34A"
+  },
+  "navigation": {
+    "groups": [
+      {
+        "group": "Introduction",
+        "pages": [
+          "CODE_OF_CONDUCT",
+          "SECURITY",
+          "SUPPORT"
+        ]
+      },
+      {
+        "group": "Docs",
+        "pages": [
+          "docs/index",
+          "docs/api-reference",
+          "docs/architecture",
+          "docs/authentication",
+          "docs/boards",
+          "docs/environment",
+          "docs/frontend",
+          "docs/projects",
+          "docs/quickstart",
+          "docs/readme removed",
+          "docs/testing",
+          "docs/workspaces",
+          {
+            "group": "Superpowers",
+            "pages": [
+              {
+                "group": "Plans",
+                "pages": [
+                  "docs/superpowers/plans/2026-10-28-board-data-foundation",
+                  "docs/superpowers/plans/2026-10-28-board-frontend-decomposition",
+                  "docs/superpowers/plans/2026-10-28-context-aware-planning"
+                ]
+              },
+              {
+                "group": "Specs",
+                "pages": [
+                  "docs/superpowers/specs/2026-10-28-board-data-foundation-design",
+                  "docs/superpowers/specs/2026-10-28-board-frontend-decomposition-design",
+                  "docs/superpowers/specs/2026-10-28-context-aware-planning-design"
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

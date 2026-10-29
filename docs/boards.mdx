@@ -102,6 +102,24 @@ DELETE /workspaces/{workspaceId}/projects/{projectId}/boards/{boardId}/cards/{ca
 GET    /workspaces/{workspaceId}/projects/{projectId}/boards/{boardId}/graph
 ```
 
+## Project shell and board system
+
+Each project detail page is a container, not a single-purpose board screen. The shell owns project metadata and module navigation, while each module owns its data and state.
+### Board templates
+
+Project creation intentionally does not choose the board workflow. When a new project is opened for the first time, the board module shows a setup screen where the user can choose a template or create custom lists.
+
+
+| Template | Generated lists (status) |
+| --- | --- |
+| `BASIC` | To Do (`TODO`), In Progress (`IN_PROGRESS`), Done (`DONE`) |
+| `AGILE_SCRUM` | Backlog (`TODO`), Sprint (`TODO`), In Progress (`IN_PROGRESS`), Review (`IN_PROGRESS`), Done (`DONE`) |
+| `BUG_TRACKING` | Reported (`TODO`), Investigating (`IN_PROGRESS`), Fixed (`IN_PROGRESS`), Released (`DONE`) |
+| `PRODUCT_ROADMAP` | Ideas (`TODO`), Planned (`TODO`), In Progress (`IN_PROGRESS`), Shipped (`DONE`) |
+| `CUSTOM` | First list `TODO`, last list `DONE` (when there are at least two), remaining lists `IN_PROGRESS` |
+
+`POST .../lists` accepts an optional `taskStatus`, defaulting to `TODO`.
+
 Each list in a board response includes `taskStatus`:
 
 ```json
@@ -113,6 +131,25 @@ Each list in a board response includes `taskStatus`:
   "cards": []
 }
 ```
+### Board permission rules
+
+Board access is verified through the parent project and workspace.
+
+| Action | Server-side rule |
+| --- | --- |
+| Fetch board | Authenticated workspace member and project in that workspace |
+| Create board | Authenticated workspace member and valid template |
+| Create/update list | Authenticated workspace member |
+| Create/update card | Authenticated workspace member |
+| Move card | Authenticated workspace member and target list in the same board |
+| Assign card | Every assignee must be a workspace member |
+| Delete card | Workspace `OWNER` or project owner |
+| Cross-project access | Hidden behind `404` responses |
+| Non-member access | Hidden behind `404` responses |
+
+The board fetch endpoint returns the full board structure in one request: board, lists, cards, labels, and assignees. The persistence layer loads these with batched queries rather than per-card lookups, leaving room for pagination or virtualized lanes if board sizes grow.
+
+Completed projects remain read-only for board mutations, matching the project lifecycle rule enforced by the projects module.
 
 ## Rules
 

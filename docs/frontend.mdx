@@ -57,3 +57,25 @@ features/board/
 
 Workflow state comes from each list's `taskStatus`. List titles are display text
 only.
+
+## Frontend architecture
+
+The web application mirrors the API's feature-oriented structure with shared contracts and infrastructure:
+
+```text
+src/web/src
+├── features      # Product areas and UI/state owned by those areas (board: api/, model/, hooks/, components/)
+├── lib           # Shared utilities and the API client
+└── types         # Shared API/domain contracts used across features
+
+
+### Frontend flow
+
+| Step | Behavior |
+| --- | --- |
+| Select workspace | Existing workspace context persists `coordina.activeWorkspaceId` |
+| Open Projects | `/app/projects` loads active projects by default |
+| Toggle filters | Archived/completed buttons call backend query parameters |
+| Create project | Dialog posts name, description, key, icon, and color |
+| Edit project | Dialog updates metadata/status through the workspace-scoped API |
+| Archive/delete | Confirmation dialog calls archive or permanent-delete endpoint |
